@@ -7,3 +7,10 @@ https://huggingface.co/spaces/webml-community/moonshine-web
 
 https://huggingface.co/spaces/webml-community/next-server-template
 
+
+onnx-community/moonshine-base-ONNX
+onnx-community/Kokoro-82M-ONNX
+onnx-community/Qwen2.5-Coder-1.5B-Instruct
+onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX
+onnx-community/Llama-3.2-1B-Instruct-ONNX
+onnx-community/Llama-3.2-3B-Instruct-ONNX
