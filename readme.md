@@ -7,6 +7,8 @@ https://huggingface.co/spaces/webml-community/moonshine-web
 
 https://huggingface.co/spaces/webml-community/next-server-template
 
+https://github.com/huggingface/transformers.js-examples
+
 
 onnx-community/moonshine-base-ONNX
 onnx-community/Kokoro-82M-ONNX
