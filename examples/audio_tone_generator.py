@@ -88,10 +88,10 @@ def generate_beautiful_tone(output_wav_file):
         wf.setsampwidth(2)   # 16-bit samples (2 bytes)
         wf.setframerate(SAMPLE_RATE)
         wf.writeframes(tone_data)
-    # Example: generate confidence tones
-    generate_confidence_tone("low", '/path/to/low.wav')
-    generate_confidence_tone("medium", '/path/to/medium.wav')
-    generate_confidence_tone("high", '/path/to/high.wav')
+    # Example: generate confidence tones (using relative paths)
+    generate_confidence_tone("low", 'low.wav')
+    generate_confidence_tone("medium", 'medium.wav')
+    generate_confidence_tone("high", 'high.wav')
 
-    # Example: generate audio from MIDI
-    generate_audio_from_midi('/path/to/midi_input.txt', '/path/to/output.wav')
+    # Example: generate audio from MIDI (skipped because input file not provided)
+    # generate_audio_from_midi('/path/to/midi_input.txt', '/path/to/output.wav')
