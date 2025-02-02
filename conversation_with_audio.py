@@ -29,4 +29,12 @@ def main():
         os.system("play temp.wav")  # or 'afplay', etc., depending on your system
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "beautiful":
+        from examples.audio_tone_generator import generate_beautiful_tone
+        output_file = "beautiful_tone.wav"
+        generate_beautiful_tone(output_file)
+        print("Playing beautiful tone...")
+        os.system("play " + output_file)   # Adjust command as needed for your OS (e.g., afplay on macOS)
+    else:
+        main()
