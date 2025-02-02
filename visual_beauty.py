@@ -22,6 +22,13 @@ def plot_waveform(wav_file):
     plt.title('Waveform of ' + wav_file)
     plt.legend()
     plt.tight_layout()
+    fig = plt.gcf()
+    ax = plt.gca()
+    def on_move(event):
+        if event.inaxes == ax and event.xdata is not None:
+            ax.axvline(event.xdata, color='red', alpha=0.3)
+            fig.canvas.draw_idle()
+    fig.canvas.mpl_connect('motion_notify_event', on_move)
     plt.show()
 
 def main():
