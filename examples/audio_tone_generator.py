@@ -78,20 +78,33 @@ def generate_audio_from_midi(midi_file, output_wav_file):
         wf.writeframes(all_wave_data)
 
 def generate_beautiful_tone(output_wav_file):
-    # Define the tone parameters for a "beautiful tone"
-    frequency = 440         # For example, A4 note
-    amplitude = 0.5         # A suitable amplitude
-    duration = 2.0          # Ensure the tone is at least 2 seconds long
-    tone_data = generate_sine_wave(frequency, amplitude, duration)
+    # Define parameters for a beautiful tone chord
+    frequencies = [440, 554.37, 659.25]  # A4, C#5, E5 chord for a major sound
+    amplitude = 0.4
+    duration = 2.0
+    num_samples = int(SAMPLE_RATE * duration)
+    fade_duration = 0.1
+    fade_samples = int(SAMPLE_RATE * fade_duration)
+    tone_data = bytearray()
+    for i in range(num_samples):
+        sample = 0
+        for freq in frequencies:
+            s = amplitude * math.sin(2 * math.pi * freq * i / SAMPLE_RATE)
+            if i < fade_samples:
+                s *= (i / fade_samples)
+            elif i >= num_samples - fade_samples:
+                s *= ((num_samples - i) / fade_samples)
+            sample += s
+        sample /= len(frequencies)
+        sample_int = int(sample * 32767)
+        tone_data.extend(sample_int.to_bytes(2, byteorder='little', signed=True))
     with wave.open(output_wav_file, 'wb') as wf:
         wf.setnchannels(1)   # Mono
         wf.setsampwidth(2)   # 16-bit samples (2 bytes)
         wf.setframerate(SAMPLE_RATE)
         wf.writeframes(tone_data)
-    # Example: generate confidence tones (using relative paths)
+    # Generate confidence tones (using relative paths)
     generate_confidence_tone("low", 'low.wav')
     generate_confidence_tone("medium", 'medium.wav')
     generate_confidence_tone("high", 'high.wav')
-
-    # Example: generate audio from MIDI (skipped because input file not provided)
-    # generate_audio_from_midi('/path/to/midi_input.txt', '/path/to/output.wav')
+    # Skipped: generate audio from MIDI (input file not provided)
