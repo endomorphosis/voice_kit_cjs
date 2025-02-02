@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import subprocess
 from examples.audio_tone_generator import generate_beautiful_tone
 
