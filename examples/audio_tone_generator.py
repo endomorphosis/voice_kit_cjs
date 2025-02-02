@@ -5,11 +5,18 @@ SAMPLE_RATE = 44100
 TONE_DURATION = 0.5   # Duration for confidence tones
 AUDIO_DURATION = 1    # Duration for each MIDI note
 
-def generate_sine_wave(frequency, amplitude, duration):
+def generate_sine_wave(frequency, amplitude, duration, fade_duration=0.1):
     num_samples = int(SAMPLE_RATE * duration)
+    fade_samples = int(SAMPLE_RATE * fade_duration)
     wave_data = []
     for i in range(num_samples):
         sample = amplitude * math.sin(2 * math.pi * frequency * i / SAMPLE_RATE)
+        # Apply fade-in
+        if i < fade_samples:
+            sample *= (i / fade_samples)
+        # Apply fade-out
+        elif i >= num_samples - fade_samples:
+            sample *= ((num_samples - i) / fade_samples)
         sample_int = int(sample * 32767)
         wave_data.append(sample_int.to_bytes(2, byteorder='little', signed=True))
     return b"".join(wave_data)
