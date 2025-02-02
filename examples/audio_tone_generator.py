@@ -70,7 +70,17 @@ def generate_audio_from_midi(midi_file, output_wav_file):
         wf.setframerate(SAMPLE_RATE)
         wf.writeframes(all_wave_data)
 
-if __name__ == "__main__":
+def generate_beautiful_tone(output_wav_file):
+    # Define the tone parameters for a "beautiful tone"
+    frequency = 440         # For example, A4 note
+    amplitude = 0.5         # A suitable amplitude
+    duration = 2.0          # Ensure the tone is at least 2 seconds long
+    tone_data = generate_sine_wave(frequency, amplitude, duration)
+    with wave.open(output_wav_file, 'wb') as wf:
+        wf.setnchannels(1)   # Mono
+        wf.setsampwidth(2)   # 16-bit samples (2 bytes)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(tone_data)
     # Example: generate confidence tones
     generate_confidence_tone("low", '/path/to/low.wav')
     generate_confidence_tone("medium", '/path/to/medium.wav')
