@@ -10,8 +10,8 @@ def compress_conversation(conversation):
         if content:
             author = msg.get("author", {}).get("nickname", msg.get("author", {}).get("name", "Unknown"))
             timestamp = msg.get("timestamp", "")
-            # Use first 80 characters of the content for summary.
-            short_content = content if len(content) < 80 else content[:77] + "..."
+            # Use full content without cutting it off.
+            short_content = content
             summary_lines.append(f"- {author} ({timestamp}): {short_content}")
     return "\n".join(summary_lines)
 
