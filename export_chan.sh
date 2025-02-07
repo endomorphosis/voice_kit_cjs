@@ -11,22 +11,22 @@ ENV_FILE="~/.zshrc"
 OUTPUT_DIR="$PWD/team_chat/"
 CHANNEL_ID="1332237033673850880"
 
-# Check if the .env file exists
+# Check if the .zshrc file exists
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Error: .env file not found at $ENV_FILE"
+  echo "Error: .zshrc file not found at $ENV_FILE"
   exit 1
 fi
 
-# Load the Discord token from the .env file
+# Load the Discord token from the .zshrc file
 if ! grep -q -E '^DISCORD_TOKEN=' "$ENV_FILE"; then
-  echo "Error: DISCORD_TOKEN is not set in the .env file.  Please ensure that the file $ENV_FILE exists and contains a line like: DISCORD_TOKEN=your_discord_token"
+  echo "Error: DISCORD_TOKEN is not set in $ENV_FILE.  Please ensure that the file exists and contains a line like: DISCORD_TOKEN=your_discord_token"
   exit 1
 fi
 
 DISCORD_TOKEN=$(grep -E '^DISCORD_TOKEN=' "$ENV_FILE" | cut -d '=' -f 2)
 
 if [[ -z "$DISCORD_TOKEN" ]]; then
-  echo "Error: DISCORD_TOKEN is empty in the .env file"
+  echo "Error: DISCORD_TOKEN is empty in the .zshrc file"
   exit 1
 fi
 
