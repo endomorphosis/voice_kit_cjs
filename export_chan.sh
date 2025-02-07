@@ -7,7 +7,7 @@ set -euo pipefail
 set -x
 
 # Define paths and variables #$PWD
-ENV_FILE="$PWD/.env"
+ENV_FILE="~/.zshrc"
 OUTPUT_DIR="$PWD/team_chat/"
 CHANNEL_ID="1332237033673850880"
 
@@ -60,4 +60,3 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Export complete. Files saved to $OUTPUT_DIR."
-
