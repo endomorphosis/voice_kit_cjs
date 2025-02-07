@@ -1,0 +1,11 @@
+{
+  "name": "voice_kit_cjs",
+  "version": "1.0.0",
+  "description": "Voice kit CJS package",
+  "main": "index.js",
+  "scripts": {
+    "build": "node index.js"
+  },
+  "author": "",
+  "license": "ISC"
+}
