@@ -24,7 +24,10 @@ fi
 
 # Create the output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
-
+if [[ $? -ne 0 ]]; then
+  echo "Error: Failed to create output directory: $OUTPUT_DIR"
+  exit 1
+fi
 # Run the Docker command to export the Discord channel
 docker run --rm -it \
   -v "$OUTPUT_DIR:/out" \
@@ -34,5 +37,11 @@ docker run --rm -it \
   -c "$CHANNEL_ID" \
   -t "$DISCORD_TOKEN" \
   --after "2024-10-11 23:59"
+
+# checking return code from docker
+if [[ $? -ne 0 ]]; then
+    echo "Error: Docker command failed."
+    exit 1
+fi
 
 echo "Export complete. Files saved to $OUTPUT_DIR."
