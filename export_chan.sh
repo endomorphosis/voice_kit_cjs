@@ -19,7 +19,7 @@ fi
 
 # Load the Discord token from the .env file
 if ! grep -q -E '^DISCORD_TOKEN=' "$ENV_FILE"; then
-  echo "Error: DISCORD_TOKEN is not set in the .env file"
+  echo "Error: DISCORD_TOKEN is not set in the .env file.  Please ensure that the file $ENV_FILE exists and contains a line like: DISCORD_TOKEN=your_discord_token"
   exit 1
 fi
 
