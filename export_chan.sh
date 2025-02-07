@@ -7,7 +7,7 @@ set -euo pipefail
 set -x
 
 # Define paths and variables #$PWD
-ENV_FILE="~/.zshrc"
+ENV_FILE="$HOME/.zshrc"
 OUTPUT_DIR="$PWD/team_chat/"
 CHANNEL_ID="1332237033673850880"
 
