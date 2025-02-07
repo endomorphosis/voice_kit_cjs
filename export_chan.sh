@@ -7,28 +7,8 @@ set -euo pipefail
 set -x
 
 # Define paths and variables #$PWD
-ENV_FILE="$HOME/.zshrc"
 OUTPUT_DIR="$PWD/team_chat/"
 CHANNEL_ID="1332237033673850880"
-
-# Check if the .zshrc file exists
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Error: .zshrc file not found at $ENV_FILE"
-  exit 1
-fi
-
-# Load the Discord token from the .zshrc file
-if ! grep -q -E '^DISCORD_TOKEN=' "$ENV_FILE"; then
-  echo "Error: DISCORD_TOKEN is not set in $ENV_FILE.  Please ensure that the file exists and contains a line like: DISCORD_TOKEN=your_discord_token"
-  exit 1
-fi
-
-DISCORD_TOKEN=$(grep -E '^DISCORD_TOKEN=' "$ENV_FILE" | cut -d '=' -f 2)
-
-if [[ -z "$DISCORD_TOKEN" ]]; then
-  echo "Error: DISCORD_TOKEN is empty in the .zshrc file"
-  exit 1
-fi
 
 # Check if Docker is installed and running
 if ! docker info > /dev/null 2>&1; then
@@ -42,6 +22,10 @@ if [[ $? -ne 0 ]]; then
   echo "Error: Failed to create output directory: $OUTPUT_DIR"
   exit 1
 fi
+
+# Prompt the user for the Discord token
+read -r -s -p "Enter your Discord token: " DISCORD_TOKEN
+echo ""  # Newline after the prompt
 
 # Run the Docker command to export the Discord channel
 docker run --rm -it \
