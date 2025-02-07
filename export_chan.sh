@@ -5,8 +5,8 @@ set -euo pipefail
 
 # Define paths and variables #$PWD
 ENV_FILE="$PWD/.env"
-OUTPUT_DIR="$PWD/ai16z/"
-CHANNEL_ID="1285105813349859421"
+OUTPUT_DIR="$PWD/team_chat/"
+CHANNEL_ID="1332237033673850880"
 
 # Check if the .env file exists
 if [[ ! -f "$ENV_FILE" ]]; then
