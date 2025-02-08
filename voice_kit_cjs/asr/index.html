@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper Diarization Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #controls {
+            margin: 20px 0;
+        }
+        #transcriptionOutput {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-top: 20px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .segment {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        .speaker {
+            font-weight: bold;
+            color: #2c5282;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        #statusIndicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: #cc0000;
+        }
+        #statusIndicator.recording {
+            background-color: #00cc00;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .loading {
+            display: none;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Whisper Diarization Demo</h1>
+    
+    <div id="controls">
+        <div id="statusIndicator"></div>
+        <button id="startButton">Start Recording</button>
+        <button id="stopButton" disabled>Stop Recording</button>
+        <button id="clearButton">Clear Output</button>
+    </div>
+
+    <div class="loading" id="loadingIndicator">
+        Loading model... Please wait...
+    </div>
+
+    <div id="transcriptionOutput"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers"></script>
+    <script src="whisper_diarization.js"></script>
+    <script src="browser_mic_processor.js"></script>
+    <script>
+        let whisperDiarization;
+        let micProcessor;
+        let isInitialized = false;
+
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const clearButton = document.getElementById('clearButton');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const transcriptionOutput = document.getElementById('transcriptionOutput');
+
+        async function initialize() {
+            loadingIndicator.style.display = 'block';
+            try {
+                whisperDiarization = new WhisperDiarization();
+                micProcessor = new BrowserMicProcessor({
+                    lowPassFrequency: 1000,
+                    threshold: -50,
+                    bufferSize: 4096,
+                    sampleRate: 16000
+                });
+
+                await micProcessor.initialize(whisperDiarization);
+                isInitialized = true;
+                startButton.disabled = false;
+                loadingIndicator.style.display = 'none';
+            } catch (error) {
+                console.error('Initialization error:', error);
+                loadingIndicator.textContent = 'Error initializing: ' + error.message;
+            }
+        }
+
+        function updateUI(isRecording) {
+            startButton.disabled = isRecording;
+            stopButton.disabled = !isRecording;
+            statusIndicator.className = isRecording ? 'recording' : '';
+        }
+
+        startButton.addEventListener('click', () => {
+            if (!isInitialized) return;
+            micProcessor.startRecording();
+            updateUI(true);
+        });
+
+        stopButton.addEventListener('click', async () => {
+            if (!isInitialized) return;
+            await micProcessor.stopRecording();
+            updateUI(false);
+        });
+
+        clearButton.addEventListener('click', () => {
+            transcriptionOutput.innerHTML = '';
+        });
+
+        window.addEventListener('transcription', (event) => {
+            const result = event.detail;
+            
+            result.segments.forEach(segment => {
+                const segmentDiv = document.createElement('div');
+                segmentDiv.className = 'segment';
+                segmentDiv.innerHTML = `
+                    <span class="speaker">${segment.speaker}</span>
+                    <span class="timestamp">[${segment.start.toFixed(2)}s - ${segment.end.toFixed(2)}s]:</span>
+                    <span class="text">${segment.text}</span>
+                `;
+                transcriptionOutput.appendChild(segmentDiv);
+            });
+
+            transcriptionOutput.scrollTop = transcriptionOutput.scrollHeight;
+        });
+
+        // Initialize when page loads
+        initialize();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (micProcessor) {
+                micProcessor.cleanup();
+            }
+        });
+    </script>
+</body>
+</html>
