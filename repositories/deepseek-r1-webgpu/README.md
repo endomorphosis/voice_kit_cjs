@@ -50,3 +50,12 @@ npm run dev
 ```
 
 The application should now be running locally. Open your browser and go to `http://localhost:5173` to see it in action.
+
+Optional: Using the setup script
+
+If you downloaded or cloned the repository and have the file `setup_deepseek.sh` in the repository root, you can copy it to your Desktop and use it to set up the project. From the repository root, run:
+```bash
+cp setup_deepseek.sh ~/Desktop/
+chmod +x ~/Desktop/setup_deepseek.sh
+~/Desktop/setup_deepseek.sh
+```
