@@ -1,0 +1,11 @@
+{
+  "name": "voice_kit_webgpu_cjs",
+  "version": "1.0.0",
+  "description": "Voice processing kit with Whisper diarization",
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": {
+    "@huggingface/inference": "^2.6.4",
+    "@xenova/transformers": "^2.13.0"
+  }
+}
