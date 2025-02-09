@@ -28,7 +28,9 @@
       "ort-wasm.wasm",
       "ort-wasm-simd.wasm",
       "ort-wasm-threaded.wasm",
-      "ort-wasm-simd-threaded.jsep.wasm"
+      "ort-wasm-simd-threaded.jsep.wasm",
+      "transformers.bundle.min.js",
+      "ort.bundle.min.js"
     ],
     "matches": ["<all_urls>"]
   }],
