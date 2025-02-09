@@ -42,7 +42,10 @@ const config = {
     rules: [
       {
         test: /\.wasm$/,
-        type: 'asset/resource'
+        type: 'asset/resource',
+        generator: {
+          filename: '[name][ext]'
+        }
       }
     ]
   },
@@ -61,6 +64,7 @@ const config = {
           from: "src/popup.css",
           to: "popup.css",
         },
+        // Copy ONNX WASM files from local node_modules
         {
           from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm'),
           to: 'ort-wasm-simd-threaded.jsep.wasm'
@@ -76,6 +80,14 @@ const config = {
         {
           from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm.wasm'),
           to: 'ort-wasm.wasm'
+        },
+        {
+          from: path.resolve(__dirname, 'node_modules/@huggingface/transformers/dist/transformers.bundle.min.js'),
+          to: 'transformers.bundle.min.js'
+        },
+        {
+          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort.bundle.min.js'),
+          to: 'ort.bundle.min.js'
         }
       ],
     }),

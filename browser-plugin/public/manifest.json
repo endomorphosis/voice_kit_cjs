@@ -23,6 +23,15 @@
       "js": ["content.js"]
     }
   ],
+  "web_accessible_resources": [{
+    "resources": [
+      "ort-wasm.wasm",
+      "ort-wasm-simd.wasm",
+      "ort-wasm-threaded.wasm",
+      "ort-wasm-simd-threaded.jsep.wasm"
+    ],
+    "matches": ["<all_urls>"]
+  }],
   "minimum_chrome_version": "92",
   "action": {
     "default_icon": {

@@ -10,16 +10,16 @@ import { KokoroTTS } from "../../voice_kit_cjs/tts/src/kokoro.js";
 
 import { CONTEXT_MENU_ITEM_ID } from "./constants.js";
 
-// Configure transformers.js to use WASM
+// Configure transformers.js to use local WASM files
 env.backends.onnx.wasm.wasmPaths = {
-  'ort-wasm-simd-threaded.jsep.wasm': 'ort-wasm-simd-threaded.jsep.wasm',
-  'ort-wasm-simd.wasm': 'ort-wasm-simd.wasm',
-  'ort-wasm-threaded.wasm': 'ort-wasm-threaded.wasm',
-  'ort-wasm.wasm': 'ort-wasm.wasm'
+  'ort-wasm.wasm': chrome.runtime.getURL('ort-wasm.wasm'),
+  'ort-wasm-simd.wasm': chrome.runtime.getURL('ort-wasm-simd.wasm'),
+  'ort-wasm-threaded.wasm': chrome.runtime.getURL('ort-wasm-threaded.wasm'),
+  'ort-wasm-simd-threaded.jsep.wasm': chrome.runtime.getURL('ort-wasm-simd-threaded.jsep.wasm')
 };
 
-// Set preferred backend order
-env.backends.onnx.preferredBackend = "webgpu";
+// Set preferred backend order with fallbacks
+env.backends.onnx.preferredBackendOrder = ["webgpu", "wasm", "cpu"];
 env.backends.onnx.initTimeout = 30000; // Increase timeout for initialization
 
 // Set up the stopping criteria for interrupting generation if needed
