@@ -5,7 +5,9 @@
   "main": "index.js",
   "type": "commonjs",
   "dependencies": {
+    "-": "^0.0.1",
     "@huggingface/inference": "^2.6.4",
-    "@xenova/transformers": "^2.13.0"
+    "@xenova/transformers": "^2.13.0",
+    "sharp": "^0.33.5"
   }
 }

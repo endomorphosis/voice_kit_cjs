@@ -3,23 +3,8 @@
 
 import { ACTION_NAME } from "./constants.js";
 
-const inputElement = document.getElementById("text");
+// Import only what we need
 const outputElement = document.getElementById("output");
-
-// Listen for changes made to the textbox.
-inputElement.addEventListener("input", async (event) => {
-  // Bundle the input data into a message.
-  const message = {
-    action: ACTION_NAME,
-    text: event.target.value,
-  };
-
-  // Send this message to the service worker.
-  const response = await chrome.runtime.sendMessage(message);
-
-  // Handle results returned by the service worker (`background.js`) and update the popup's UI.
-  outputElement.innerText = JSON.stringify(response, null, 2);
-});
 
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -124,5 +109,246 @@ chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
+    }
+});
+
+// Speech recognition setup
+const micButton = document.getElementById('mic-button');
+let mediaRecorder = null;
+let recordedChunks = [];
+let asrWorker = null;
+
+async function initASR() {
+    try {
+        console.log('Initializing ASR worker...');
+        asrWorker = new Worker(new URL('./asr-worker.js', import.meta.url), { type: 'module' });
+        
+        asrWorker.onerror = (error) => {
+            console.error('ASR worker error:', error);
+            addLogEntry('error', 'ASR worker error:', error.message);
+        };
+        
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('ASR worker initialization timed out'));
+            }, 30000); // 30 second timeout
+            
+            asrWorker.onmessage = (event) => {
+                const { type, text, error } = event.data;
+                
+                if (type === 'ready') {
+                    console.log('ASR worker ready');
+                    clearTimeout(timeout);
+                    micButton.disabled = false;
+                    resolve();
+                } else if (type === 'transcription') {
+                    chatInput.value = (chatInput.value + ' ' + text).trim();
+                } else if (type === 'error') {
+                    console.error('ASR error:', error);
+                    addLogEntry('error', 'ASR error:', error);
+                }
+            };
+        });
+    } catch (error) {
+        console.error('Error initializing ASR:', error);
+        addLogEntry('error', 'Failed to initialize speech recognition');
+        micButton.disabled = true;
+        throw error;
+    }
+}
+
+// Disable mic button initially
+micButton.disabled = true;
+
+// Download and cache the Copilot avatar
+async function cacheIcon() {
+    try {
+        const response = await fetch('https://avatars.githubusercontent.com/u/123265934');
+        const blob = await response.blob();
+        const iconUrl = URL.createObjectURL(blob);
+        const links = document.querySelectorAll('link[rel*="icon"]');
+        links.forEach(link => {
+            link.href = iconUrl;
+        });
+    } catch (error) {
+        console.error('Failed to cache icon:', error);
+    }
+}
+
+// Initialize when popup loads
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await Promise.all([
+            initASR(),
+            cacheIcon()
+        ]);
+        console.log('Initialization complete');
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        addLogEntry('error', 'Failed to initialize: ' + error.message);
+    }
+});
+
+async function requestMicrophonePermissions() {
+    try {
+        // Check if permissions are already granted
+        const permissions = await navigator.permissions.query({ name: 'microphone' });
+        
+        if (permissions.state === 'granted') {
+            return true;
+        } else if (permissions.state === 'prompt') {
+            // Show instructions to user before requesting permissions
+            addLogEntry('info', 'Please allow microphone access in the browser prompt');
+            // Request permissions explicitly
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop()); // Clean up test stream
+            return true;
+        } else if (permissions.state === 'denied') {
+            addLogEntry('error', 'Microphone access is blocked. Please allow access in your browser settings.');
+            // Show instructions for enabling permissions
+            const instructions = document.createElement('div');
+            instructions.className = 'log-entry info';
+            instructions.innerHTML = `
+                To enable microphone access:
+                <ol>
+                    <li>Click the camera/microphone icon in your browser's address bar</li>
+                    <li>Select "Allow" for microphone access</li>
+                    <li>Refresh this page</li>
+                </ol>
+            `;
+            logMessages.appendChild(instructions);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error checking permissions:', error);
+        return false;
+    }
+}
+
+async function startRecording() {
+    try {
+        // Check permissions first
+        const hasPermission = await requestMicrophonePermissions();
+        if (!hasPermission) {
+            micButton.classList.remove('recording');
+            return;
+        }
+
+        console.log('Requesting microphone access...');
+        const constraints = { 
+            audio: {
+                channelCount: 1,
+                sampleRate: 16000
+            }
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Microphone access granted:', stream.getAudioTracks()[0].getSettings());
+        
+        mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm;codecs=opus'
+        });
+        console.log('MediaRecorder created with settings:', mediaRecorder.mimeType);
+        
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunks.push(event.data);
+                console.log('Recorded chunk size:', event.data.size);
+            }
+        };
+        
+        mediaRecorder.onerror = (event) => {
+            console.error('MediaRecorder error:', event.error);
+        };
+        
+        mediaRecorder.onstop = async () => {
+            try {
+                console.log('Recording stopped, processing audio...');
+                const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+                console.log('Audio blob created, size:', audioBlob.size);
+                recordedChunks = [];
+                
+                // Convert audio to proper format for Whisper
+                const audioContext = new AudioContext({ sampleRate: 16000 });
+                const audioData = await audioBlob.arrayBuffer();
+                console.log('Audio data size:', audioData.byteLength);
+                
+                const audioBuffer = await audioContext.decodeAudioData(audioData);
+                console.log('Audio decoded, duration:', audioBuffer.duration);
+                
+                // Get audio data as Float32Array
+                const audio = audioBuffer.getChannelData(0);
+                console.log('Audio converted to Float32Array, length:', audio.length);
+                
+                // Send to worker for transcription
+                if (asrWorker) {
+                    asrWorker.postMessage({ buffer: audio });
+                    console.log('Audio sent to ASR worker');
+                } else {
+                    console.error('ASR worker not initialized');
+                }
+                
+                // Clean up
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('Audio track stopped:', track.label);
+                });
+                micButton.classList.remove('recording');
+                
+            } catch (error) {
+                console.error('Error processing recorded audio:', error);
+                if (error.name === 'InvalidStateError') {
+                    console.error('Audio context error - possible sample rate or format issue');
+                }
+                addLogEntry('error', 'Error processing audio:', error.message);
+            }
+        };
+        
+        mediaRecorder.start(1000); // Collect data in 1-second chunks
+        console.log('Recording started');
+        micButton.classList.add('recording');
+        
+    } catch (error) {
+        console.error('Error starting recording:', {
+            name: error.name,
+            message: error.message,
+            constraint: error.constraint,
+            stack: error.stack
+        });
+        
+        let errorMessage = 'Could not start recording: ';
+        if (error.name === 'NotAllowedError') {
+            // Don't show this message since we handle it in requestMicrophonePermissions
+            return;
+        } else if (error.name === 'NotFoundError') {
+            errorMessage += 'No microphone was found';
+        } else if (error.name === 'NotReadableError') {
+            errorMessage += 'Microphone is already in use by another application';
+        } else {
+            errorMessage += error.message || 'Unknown error';
+        }
+        
+        addLogEntry('error', errorMessage);
+        micButton.classList.remove('recording');
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+    }
+}
+
+// Initialize ASR when popup is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    initASR();
+});
+
+// Add click handler for mic button
+micButton.addEventListener('click', () => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+        startRecording();
+    } else {
+        stopRecording();
     }
 });

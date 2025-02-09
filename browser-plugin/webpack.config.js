@@ -14,6 +14,7 @@ const config = {
     background: "./src/background.js",
     popup: "./src/popup.js",
     content: "./src/content.js",
+    "asr-worker": "./src/asr-worker.js",
   },
   resolve: {
     alias: {
