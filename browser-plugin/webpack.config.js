@@ -34,7 +34,45 @@ const baseConfig = {
         }
       }
     ]
-  }
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: "./src/popup.html",
+      filename: "popup.html",
+      chunks: ['popup']
+    }),
+    new CopyPlugin({
+      patterns: [
+        {
+          from: "public",
+          to: ".",
+          globOptions: {
+            ignore: ["**/README.md"]
+          }
+        },
+        {
+          from: "src/popup.css",
+          to: "popup.css",
+        },
+        {
+          from: "src/content.js",
+          to: "content.js",
+        },
+        {
+          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
+          to: "ort-wasm-simd-threaded.wasm"
+        },
+        {
+          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
+          to: "ort-wasm-simd-threaded.jsep.wasm"
+        },
+        {
+          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort.bundle.min.mjs",
+          to: "ort.bundle.min.mjs"
+        }
+      ],
+    }),
+  ]
 };
 
 // Common output path for all configurations
@@ -103,41 +141,7 @@ const webConfig = {
     clean: false,
     publicPath: '/',
     chunkFormat: 'array-push'
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: "./src/popup.html",
-      filename: "popup.html",
-      chunks: ['popup']
-    }),
-    new CopyPlugin({
-      patterns: [
-        {
-          from: "public",
-          to: ".",
-          globOptions: {
-            ignore: ["**/README.md"]
-          }
-        },
-        {
-          from: "src/popup.css",
-          to: "popup.css",
-        },
-        {
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
-          to: "ort-wasm-simd-threaded.wasm"
-        },
-        {
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
-          to: "ort-wasm-simd-threaded.jsep.wasm"
-        },
-        {
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort.bundle.min.mjs",
-          to: "ort.bundle.min.mjs"
-        }
-      ],
-    }),
-  ]
+  }
 };
 
 export default [serviceWorkerConfig, webWorkerConfig, webConfig];

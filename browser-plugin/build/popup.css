@@ -1,0 +1,252 @@
+/* Styles go here */
+
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  font-family: "Roboto", sans-serif;
+}
+
+h1 {
+  font-size: 40px;
+  text-align: center;
+  font-weight: 500;
+}
+
+h2 {
+  font-size: 20px;
+  text-align: center;
+  font-weight: 400;
+  margin-bottom: 16px;
+}
+
+.container {
+  width: 400px;
+  padding: 16px;
+}
+
+html,
+body {
+  min-width: 400px;
+  min-height: 500px;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#text {
+  width: 100%;
+  padding: 8px;
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+#output {
+  font-size: 20px;
+  font-family: "Roboto Mono", monospace;
+  height: 100px;
+}
+
+#model-status {
+  background: #f5f5f5;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.progress-container {
+  margin: 8px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#progress-fill {
+  width: 0%;
+  height: 100%;
+  background: #1976d2;
+  transition: width 0.3s ease;
+}
+
+#progress-fill.error {
+  background: #f44336;
+}
+
+#loading-progress {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  text-align: right;
+}
+
+#status-details {
+  font-size: 12px;
+  color: #666;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+#status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #666;
+}
+
+#status-indicator.ready {
+  background: #4caf50;
+}
+
+#status-indicator.loading {
+  background: #ff9800;
+}
+
+#status-indicator.error {
+  background: #f44336;
+}
+
+#chat-container {
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.message {
+  margin-bottom: 12px;
+  max-width: 85%;
+}
+
+.message.user {
+  margin-left: auto;
+  background: #e3f2fd;
+  padding: 8px 12px;
+  border-radius: 12px 12px 0 12px;
+}
+
+.message.assistant {
+  background: #f5f5f5;
+  padding: 8px 12px;
+  border-radius: 12px 12px 12px 0;
+}
+
+.input-area {
+  border-top: 1px solid #ddd;
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+#chat-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: none;
+  height: 60px;
+}
+
+#send-button {
+  padding: 8px 16px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#send-button:hover {
+  background: #1565c0;
+}
+
+#console-output {
+  background: #2b2b2b;
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#console-output h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #fff;
+}
+
+#log-messages {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.log-entry {
+  margin-bottom: 4px;
+}
+
+.log-entry.error {
+  color: #ff5252;
+}
+
+.log-entry.info {
+  color: #64b5f6;
+}
+
+#mic-button {
+  padding: 8px;
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+#mic-button:hover {
+  background: #f5f5f5;
+  color: #1976d2;
+}
+
+#mic-button.recording {
+  background: #ef5350;
+  color: white;
+  border-color: #ef5350;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 83, 80, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 83, 80, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 83, 80, 0);
+  }
+}
