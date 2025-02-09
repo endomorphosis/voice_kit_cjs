@@ -1,15 +1,15 @@
 {
-  "name": "browser-extension",
-  "version": "0.0.1",
-  "description": "Transformers.js | Sample browser extension",
+  "name":"hallucinate-extension",
+  "version": "0.0.2",
+  "description": "Hallucinate Plugin",
   "scripts": {
     "build": "webpack",
     "dev": "webpack --watch",
     "clean": "rimraf build"
   },
   "type": "module",
-  "author": "Hugging Face",
-  "license": "Apache-2.0",
+  "author": "Benjamin Barber",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@huggingface/transformers": "^3.3.3",
     "kokoro-js": "^1.1.1",

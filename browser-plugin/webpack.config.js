@@ -39,7 +39,8 @@ const config = {
     path: path.resolve(__dirname, "build"),
     filename: "[name].js",
     chunkLoading: false,
-    assetModuleFilename: '[name][ext]'
+    assetModuleFilename: '[name][ext]',
+    publicPath: '/'
   },
   experiments: {
     asyncWebAssembly: true,
@@ -59,6 +60,7 @@ const config = {
     new HtmlWebpackPlugin({
       template: "./src/popup.html",
       filename: "popup.html",
+      chunks: ['popup']
     }),
     new CopyPlugin({
       patterns: [
@@ -69,31 +71,6 @@ const config = {
         {
           from: "src/popup.css",
           to: "popup.css",
-        },
-        // Copy ONNX WASM files directly from node_modules paths
-        {
-          from: 'node_modules/onnxruntime-web/dist/ort-wasm.wasm',
-          to: 'ort-wasm.wasm'
-        },
-        {
-          from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm',
-          to: 'ort-wasm-simd.wasm'
-        },
-        {
-          from: 'node_modules/onnxruntime-web/dist/ort-wasm-threaded.wasm',
-          to: 'ort-wasm-threaded.wasm'
-        },
-        {
-          from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
-          to: 'ort-wasm-simd-threaded.wasm'
-        },
-        {
-          from: 'node_modules/@huggingface/transformers/dist/transformers.bundle.min.js',
-          to: 'transformers.bundle.min.js'
-        },
-        {
-          from: 'node_modules/onnxruntime-web/dist/ort.bundle.min.js',
-          to: 'ort.bundle.min.js'
         }
       ],
     }),
