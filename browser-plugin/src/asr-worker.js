@@ -1,7 +1,15 @@
 import { pipeline, env } from "@huggingface/transformers";
 
 // Configure transformers.js to use WASM files from extension
-env.backends.onnx.wasm.wasmPaths = `${self.location.origin}/`;
+// Note: In the worker context, paths are relative to the extension root
+env.backends.onnx.wasm.wasmPaths = {
+    'ort-wasm.wasm': './ort-wasm.wasm',
+    'ort-wasm-simd.wasm': './ort-wasm-simd.wasm',
+    'ort-wasm-threaded.wasm': './ort-wasm-threaded.wasm',
+    'ort-wasm-simd-threaded.wasm': './ort-wasm-simd-threaded.wasm',
+    'ort.wasm': './ort.wasm',
+    'ort-wasm-simd-threaded.jsep.wasm': './ort-wasm-simd-threaded.jsep.wasm'
+};
 
 // Set preferred backend order with fallbacks
 env.backends.onnx.preferredBackendOrder = ["webgpu", "wasm", "cpu"];

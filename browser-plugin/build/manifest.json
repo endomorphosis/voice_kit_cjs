@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Hallucinate Plugin",
   "description": "Hallucinate Plugin",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "permissions": [
     "activeTab",
     "scripting",
@@ -33,7 +33,8 @@
       "ort.bundle.min.js",
       "asr-worker.js"
     ],
-    "matches": ["<all_urls>"]
+    "matches": ["<all_urls>"],
+    "use_dynamic_url": true
   }],
   "minimum_chrome_version": "92",
   "action": {
@@ -46,7 +47,7 @@
     "default_popup": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; worker-src blob: 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self' chrome-extension://*"
   },
   "icons": {
     "16": "icons/icon16.png",

@@ -20,7 +20,10 @@ const config = {
     background: "./src/background.js",
     popup: "./src/popup.js",
     content: "./src/content.js",
-    "asr-worker": "./src/asr-worker.js",
+    "asr-worker": {
+      import: "./src/asr-worker.js",
+      filename: "asr-worker.js"
+    }
   },
   resolve: {
     alias: {
@@ -40,7 +43,8 @@ const config = {
     filename: "[name].js",
     chunkLoading: false,
     assetModuleFilename: '[name][ext]',
-    publicPath: '/'
+    publicPath: '',  // Changed from '/' to '' for relative paths
+    clean: true
   },
   experiments: {
     asyncWebAssembly: true,
@@ -71,6 +75,10 @@ const config = {
         {
           from: "src/popup.css",
           to: "popup.css",
+        },
+        {
+          from: "node_modules/onnxruntime-web/dist/*.wasm",
+          to: "[name][ext]",
         }
       ],
     }),

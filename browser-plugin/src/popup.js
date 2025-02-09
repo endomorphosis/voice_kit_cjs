@@ -138,15 +138,16 @@ let asrWorker = null;
 async function initASR() {
     try {
         console.log('Initializing ASR worker...');
-        // Get the full URL to the worker
-        const workerUrl = chrome.runtime.getURL('asr-worker.js');
+        
+        // Use current extension's origin for worker
+        const extensionOrigin = new URL(chrome.runtime.getURL('')).origin;
+        const workerUrl = new URL('asr-worker.js', extensionOrigin).href;
         console.log('Creating worker with URL:', workerUrl);
         
-        if (!workerUrl) {
-            throw new Error('Could not get worker URL - check manifest.json web_accessible_resources');
-        }
-        
-        asrWorker = new Worker(workerUrl);
+        asrWorker = new Worker(workerUrl, { 
+            type: 'module',
+            credentials: 'same-origin'
+        });
         
         asrWorker.onerror = (error) => {
             console.error('ASR worker error:', {
