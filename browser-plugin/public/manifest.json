@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "extension",
-  "description": "Transformers.js | Sample browser extension",
+  "name": "Hallucinate Plugin",
+  "description": "Hallucinate Plugin",
   "version": "0.0.1",
   "permissions": [
     "activeTab",
@@ -27,7 +27,7 @@
       "24": "icons/icon.png",
       "32": "icons/icon.png"
     },
-    "default_title": "Transformers.js",
+    "default_title": "Hallucinate Plugin",
     "default_popup": "popup.html"
   },
   "content_security_policy": {
