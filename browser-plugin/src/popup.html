@@ -32,9 +32,17 @@
     <div class="container">
       <h1>DeepSeek Chat</h1>
       <div id="model-status">
-        <div id="status-indicator"></div>
-        <div id="status">Initializing...</div>
-        <div id="loading-progress"></div>
+        <div class="status-header">
+          <div id="status-indicator"></div>
+          <div id="status">Initializing...</div>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div id="progress-fill"></div>
+          </div>
+          <div id="loading-progress"></div>
+        </div>
+        <div id="status-details"></div>
       </div>
 
       <div id="chat-container">

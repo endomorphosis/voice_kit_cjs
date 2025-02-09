@@ -32,6 +32,8 @@ function updateStatus(message) {
     const statusEl = document.getElementById('status');
     const statusIndicator = document.getElementById('status-indicator');
     const progressEl = document.getElementById('loading-progress');
+    const progressFill = document.getElementById('progress-fill');
+    const statusDetails = document.getElementById('status-details');
     
     if (!statusEl || !statusIndicator) return;
 
@@ -39,17 +41,38 @@ function updateStatus(message) {
     
     if (message.status === 'loading') {
         statusEl.textContent = 'Loading model...';
-        if (message.progress) {
-            progressEl.textContent = `${message.progress.toFixed(1)}%`;
+        if (message.data?.progress !== undefined) {
+            const progress = message.data.progress;
+            progressFill.style.width = `${progress}%`;
+            progressEl.textContent = `${progress.toFixed(1)}%`;
+            
+            // Add detailed status information
+            if (message.data.file) {
+                statusDetails.textContent = `Downloading: ${message.data.file}`;
+            } else if (message.data.status) {
+                statusDetails.textContent = message.data.status;
+            }
+        }
+        if (message.data?.status) {
+            statusDetails.textContent = message.data.status;
         }
     } else if (message.status === 'error') {
-        statusEl.textContent = `Error: ${message.data}`;
+        statusEl.textContent = 'Error loading model';
         statusIndicator.className = 'error';
+        progressFill.classList.add('error');
         progressEl.textContent = '';
+        statusDetails.textContent = message.data || 'Unknown error occurred';
     } else if (message.status === 'ready') {
         statusEl.textContent = 'Model ready';
         statusIndicator.className = 'ready';
+        progressFill.style.width = '100%';
+        progressEl.textContent = '100%';
+        statusDetails.textContent = 'Model loaded and ready to use';
+    } else if (message.status === 'uninitialized') {
+        statusEl.textContent = 'Initializing...';
+        progressFill.style.width = '0%';
         progressEl.textContent = '';
+        statusDetails.textContent = 'Preparing to load model...';
     }
 }
 
