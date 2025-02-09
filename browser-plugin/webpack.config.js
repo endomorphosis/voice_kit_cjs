@@ -1,10 +1,16 @@
 import path from "path";
 import { fileURLToPath } from "url";
-
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import CopyPlugin from "copy-webpack-plugin";
+import * as url from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Helper function to get package dist path
+async function getPackageDistPath(packageName) {
+  const packagePath = await import.meta.resolve(packageName);
+  return path.dirname(fileURLToPath(packagePath));
+}
 
 /** @type {import('webpack').Configuration} */
 const config = {
@@ -64,29 +70,29 @@ const config = {
           from: "src/popup.css",
           to: "popup.css",
         },
-        // Copy ONNX WASM files from local node_modules
+        // Copy ONNX WASM files directly from node_modules paths
         {
-          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm'),
-          to: 'ort-wasm-simd-threaded.jsep.wasm'
-        },
-        {
-          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm'),
-          to: 'ort-wasm-simd.wasm'
-        },
-        {
-          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-threaded.wasm'),
-          to: 'ort-wasm-threaded.wasm'
-        },
-        {
-          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm.wasm'),
+          from: 'node_modules/onnxruntime-web/dist/ort-wasm.wasm',
           to: 'ort-wasm.wasm'
         },
         {
-          from: path.resolve(__dirname, 'node_modules/@huggingface/transformers/dist/transformers.bundle.min.js'),
+          from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm',
+          to: 'ort-wasm-simd.wasm'
+        },
+        {
+          from: 'node_modules/onnxruntime-web/dist/ort-wasm-threaded.wasm',
+          to: 'ort-wasm-threaded.wasm'
+        },
+        {
+          from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+          to: 'ort-wasm-simd-threaded.wasm'
+        },
+        {
+          from: 'node_modules/@huggingface/transformers/dist/transformers.bundle.min.js',
           to: 'transformers.bundle.min.js'
         },
         {
-          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort.bundle.min.js'),
+          from: 'node_modules/onnxruntime-web/dist/ort.bundle.min.js',
           to: 'ort.bundle.min.js'
         }
       ],

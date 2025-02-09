@@ -15,7 +15,7 @@ env.backends.onnx.wasm.wasmPaths = {
   'ort-wasm.wasm': chrome.runtime.getURL('ort-wasm.wasm'),
   'ort-wasm-simd.wasm': chrome.runtime.getURL('ort-wasm-simd.wasm'),
   'ort-wasm-threaded.wasm': chrome.runtime.getURL('ort-wasm-threaded.wasm'),
-  'ort-wasm-simd-threaded.jsep.wasm': chrome.runtime.getURL('ort-wasm-simd-threaded.jsep.wasm')
+  'ort-wasm-simd-threaded.wasm': chrome.runtime.getURL('ort-wasm-simd-threaded.wasm')
 };
 
 // Set preferred backend order with fallbacks
