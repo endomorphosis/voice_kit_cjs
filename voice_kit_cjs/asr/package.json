@@ -1,0 +1,14 @@
+{
+  "name": "whisper-diarization-demo",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "vite"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.8.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

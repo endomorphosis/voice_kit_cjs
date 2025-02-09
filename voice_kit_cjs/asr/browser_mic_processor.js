@@ -167,4 +167,4 @@ class BrowserMicProcessor {
     }
 }
 
-module.exports = BrowserMicProcessor;
+export default BrowserMicProcessor;

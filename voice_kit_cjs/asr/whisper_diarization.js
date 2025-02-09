@@ -1,4 +1,4 @@
-const { pipeline } = require('@xenova/transformers');
+import { pipeline } from '@xenova/transformers';
 
 class WhisperDiarization {
     constructor() {
@@ -67,4 +67,4 @@ class WhisperDiarization {
     }
 }
 
-module.exports = WhisperDiarization;
+export default WhisperDiarization;
