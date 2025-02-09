@@ -25,16 +25,16 @@
   ],
   "web_accessible_resources": [{
     "resources": [
+      "asr-worker.js",
       "ort-wasm.wasm",
       "ort-wasm-simd.wasm",
       "ort-wasm-threaded.wasm",
       "ort-wasm-simd-threaded.wasm",
       "ort-wasm-simd-threaded.jsep.wasm",
-      "ort.bundle.min.js",
-      "asr-worker.js"
+      "ort.bundle.min.js"
     ],
     "matches": ["<all_urls>"],
-    "use_dynamic_url": true
+    "extension_types": ["extension"]
   }],
   "minimum_chrome_version": "92",
   "action": {
@@ -47,7 +47,7 @@
     "default_popup": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self' chrome-extension://*"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'"
   },
   "icons": {
     "16": "icons/icon16.png",

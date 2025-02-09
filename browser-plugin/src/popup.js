@@ -135,108 +135,16 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let asrWorker = null;
 
+// Disable mic button permanently while ASR is disabled
+micButton.disabled = true;
+micButton.title = "Speech recognition temporarily disabled";
+
+// Rest of ASR functionality temporarily disabled
+/*
 async function initASR() {
-    try {
-        console.log('Initializing ASR worker...');
-        
-        // Use current extension's origin for worker
-        const extensionOrigin = new URL(chrome.runtime.getURL('')).origin;
-        const workerUrl = new URL('asr-worker.js', extensionOrigin).href;
-        console.log('Creating worker with URL:', workerUrl);
-        
-        asrWorker = new Worker(workerUrl, { 
-            type: 'module',
-            credentials: 'same-origin'
-        });
-        
-        asrWorker.onerror = (error) => {
-            console.error('ASR worker error:', {
-                message: error.message,
-                filename: error.filename,
-                lineno: error.lineno,
-                colno: error.colno
-            });
-            addLogEntry('error', 'ASR worker error:', error.message);
-        };
-        
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error('ASR worker initialization timed out'));
-            }, 30000);
-            
-            asrWorker.onmessage = (event) => {
-                const { type, text, error, message, progress, stage, details } = event.data;
-                
-                switch (type) {
-                    case 'ready':
-                        console.log('ASR worker ready');
-                        clearTimeout(timeout);
-                        micButton.disabled = false;
-                        addLogEntry('info', 'ASR initialization complete');
-                        resolve();
-                        break;
-                        
-                    case 'error':
-                        console.error('ASR error:', {
-                            context: event.data.context,
-                            details: details
-                        });
-                        addLogEntry('error', `ASR error (${event.data.context}):`, error);
-                        if (details?.cause) {
-                            addLogEntry('error', 'Cause:', details.cause.message);
-                        }
-                        break;
-                        
-                    case 'status':
-                        console.log('ASR status:', message);
-                        addLogEntry('info', message);
-                        break;
-                        
-                    case 'progress':
-                        console.log(`ASR ${stage}:`, Math.round(progress * 100) + '%');
-                        addLogEntry('info', `${stage}: ${Math.round(progress * 100)}%`);
-                        break;
-                        
-                    case 'transcription':
-                        chatInput.value = (chatInput.value + ' ' + text).trim();
-                        break;
-                }
-            };
-        });
-    } catch (error) {
-        const errorDetails = {
-            message: error.message,
-            name: error.name,
-            stack: error.stack,
-            webgpuSupport: 'navigator' in globalThis && 'gpu' in navigator,
-            workerSupport: 'Worker' in window
-        };
-        
-        console.error('Error initializing ASR:', errorDetails);
-        addLogEntry('error', 'Failed to initialize ASR worker');
-        addLogEntry('error', `Error: ${error.message}`);
-        addLogEntry('error', `WebGPU Support: ${errorDetails.webgpuSupport ? 'Yes' : 'No'}`);
-        addLogEntry('error', `Worker Support: ${errorDetails.workerSupport ? 'Yes' : 'No'}`);
-        
-        // Show WebGPU instructions if not supported
-        if (!errorDetails.webgpuSupport) {
-            const instructions = document.createElement('div');
-            instructions.className = 'log-entry info';
-            instructions.innerHTML = `
-                WebGPU is required for speech recognition:
-                <ol>
-                    <li>Use Chrome Canary or Chrome Dev (version 113+)</li>
-                    <li>Enable WebGPU in chrome://flags</li>
-                    <li>Restart the browser</li>
-                </ol>
-            `;
-            logMessages?.appendChild(instructions);
-        }
-        
-        micButton.disabled = true;
-        throw error;
-    }
+// ...existing code... 
 }
+*/
 
 // Disable mic button initially
 micButton.disabled = true;
@@ -260,7 +168,7 @@ async function cacheIcon() {
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         await Promise.all([
-            initASR(),
+            // initASR(), // Temporarily disabled
             cacheIcon()
         ]);
         console.log('Initialization complete');
@@ -421,7 +329,8 @@ function stopRecording() {
 }
 
 // Initialize ASR when popup is loaded
-document.addEventListener('DOMContentLoaded', async () => {
+// Temporarily disabled ASR initialization
+/*document.addEventListener('DOMContentLoaded', async () => {
     try {
         await initASR();
         console.log('ASR initialization complete');
@@ -429,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('ASR initialization failed:', error);
         addLogEntry('error', 'Failed to initialize ASR: ' + error.message);
     }
-});
+});*/
 
 // Add click handler for mic button
 micButton.addEventListener('click', () => {
