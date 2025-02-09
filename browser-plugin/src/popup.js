@@ -203,21 +203,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function requestMicrophonePermissions() {
     try {
-        // Check if permissions are already granted
-        const permissions = await navigator.permissions.query({ name: 'microphone' });
+        // Request microphone access through Chrome extension API
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                channelCount: 1,
+                sampleRate: 16000
+            }
+        });
         
-        if (permissions.state === 'granted') {
-            return true;
-        } else if (permissions.state === 'prompt') {
-            // Show instructions to user before requesting permissions
-            addLogEntry('info', 'Please allow microphone access in the browser prompt');
-            // Request permissions explicitly
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop()); // Clean up test stream
-            return true;
-        } else if (permissions.state === 'denied') {
-            addLogEntry('error', 'Microphone access is blocked. Please allow access in your browser settings.');
-            // Show instructions for enabling permissions
+        // Clean up test stream
+        stream.getTracks().forEach(track => track.stop());
+        return true;
+    } catch (error) {
+        console.error('Error requesting microphone permissions:', error);
+        if (error.name === 'NotAllowedError') {
+            addLogEntry('error', 'Microphone access was denied. Please allow access in your browser settings.');
             const instructions = document.createElement('div');
             instructions.className = 'log-entry info';
             instructions.innerHTML = `
@@ -229,10 +229,7 @@ async function requestMicrophonePermissions() {
                 </ol>
             `;
             logMessages.appendChild(instructions);
-            return false;
         }
-    } catch (error) {
-        console.error('Error checking permissions:', error);
         return false;
     }
 }

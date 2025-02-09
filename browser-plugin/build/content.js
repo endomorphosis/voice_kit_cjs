@@ -6,6 +6,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         displayChatUI(message.selectedText, message.result);
     } else if (message.type === 'display_error') {
         alert('Error: ' + message.error);
+    } else if (message.type === 'request_microphone') {
+        // Handle microphone permission request
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                stream.getTracks().forEach(track => track.stop());
+                sendResponse({ success: true });
+            })
+            .catch(error => {
+                sendResponse({ error: error.message });
+            });
+        return true;  // Required for async response
     }
 });
 

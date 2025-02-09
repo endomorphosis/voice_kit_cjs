@@ -205,6 +205,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         broadcastStatus(modelStatus);
         return;
     }
+    if (message.type === 'request_microphone') {
+        // Request microphone permission via activeTab
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+            chrome.tabs.sendMessage(tabs[0].id, {type: "request_microphone"})
+                .then(response => sendResponse(response))
+                .catch(error => sendResponse({error: error.message}));
+        });
+        return true;
+    }
     if (message.type === 'init_worker') {
         try {
             initializeWorker();
