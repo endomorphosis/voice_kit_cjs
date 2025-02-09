@@ -1,14 +1,10 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
+// https://vite.dev/config/
 export default defineConfig({
-  server: {
-    port: 3000,
-    headers: {
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-    }
-  },
-  optimizeDeps: {
-    exclude: ['@xenova/transformers']
-  }
+  plugins: [react(), tailwindcss()],
+  build: { target: "esnext" },
+  worker: { format: "es" },
 });
