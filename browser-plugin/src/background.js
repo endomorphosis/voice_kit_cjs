@@ -1,20 +1,33 @@
 // background.js - Handles requests from the UI, runs the model, then sends back a response
-
-import { pipeline } from "@huggingface/transformers";
+import { pipeline, env } from "@huggingface/transformers";
 import {
   AutoTokenizer,
   AutoModelForCausalLM,
   TextStreamer,
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
+import { KokoroTTS } from "../../voice_kit_cjs/tts/src/kokoro.js";
 
 import { CONTEXT_MENU_ITEM_ID } from "./constants.js";
+
+// Configure transformers.js to use WASM
+env.backends.onnx.wasm.wasmPaths = {
+  'ort-wasm-simd-threaded.jsep.wasm': 'ort-wasm-simd-threaded.jsep.wasm',
+  'ort-wasm-simd.wasm': 'ort-wasm-simd.wasm',
+  'ort-wasm-threaded.wasm': 'ort-wasm-threaded.wasm',
+  'ort-wasm.wasm': 'ort-wasm.wasm'
+};
+
+// Set preferred backend order
+env.backends.onnx.preferredBackend = "webgpu";
+env.backends.onnx.initTimeout = 30000; // Increase timeout for initialization
 
 // Set up the stopping criteria for interrupting generation if needed
 const stopping_criteria = new InterruptableStoppingCriteria();
 
 let modelStatus = 'uninitialized';
 let loadingProgress = 0;
+let tts = null;
 
 // Function to broadcast status to all popup windows
 function broadcastStatus(status, data = null) {
@@ -28,50 +41,60 @@ function broadcastStatus(status, data = null) {
 }
 
 /**
- * This class uses the Singleton pattern to enable lazy-loading of the pipeline
+ * Initialize TTS engine
  */
-class TextGenerationPipeline {
-  static model_id = "onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX";
-  static instance = null;
-
-  static async getInstance(progress_callback = null) {
-    if (this.instance) {
-        broadcastStatus('ready');
-        return this.instance;
-    }
-
+async function initTTS() {
+    if (tts) return tts;
+    
     try {
         modelStatus = 'loading';
         broadcastStatus('loading');
-
-        const updateProgress = (data) => {
-            if (data.progress !== undefined) {
-                loadingProgress = data.progress;
-                broadcastStatus('loading', data);
+        
+        const model_id = "onnx-community/Kokoro-82M-v1.0-ONNX";
+        tts = await KokoroTTS.from_pretrained(model_id, {
+            dtype: "fp32", // Using fp32 for better compatibility
+            device: "wasm", // Default to WASM backend
+            progress_callback: (progress) => {
+                loadingProgress = progress;
+                console.log(`Loading TTS model: ${Math.round(progress * 100)}%`);
+                broadcastStatus('loading');
             }
-            if (progress_callback) progress_callback(data);
-        };
-
-        this.tokenizer = await AutoTokenizer.from_pretrained(this.model_id, {
-            progress_callback: updateProgress,
         });
-
-        this.model = await AutoModelForCausalLM.from_pretrained(this.model_id, {
-            dtype: "q4f16",
-            device: "webgpu",
-            progress_callback: updateProgress,
-        });
-
-        this.instance = { tokenizer: this.tokenizer, model: this.model };
+        
         modelStatus = 'ready';
         broadcastStatus('ready');
-        return this.instance;
+        console.log('TTS model loaded successfully');
+        return tts;
     } catch (error) {
+        console.error('Failed to load TTS model:', error);
         modelStatus = 'error';
         broadcastStatus('error', error.message);
         throw error;
     }
-  }
+}
+
+/**
+ * Generate speech from text using Kokoro TTS
+ */
+async function speakText(text, voice = "af_heart") {
+    try {
+        const ttsInstance = await initTTS();
+        const audio = await ttsInstance.generate(text, { voice });
+        
+        // Create an audio element and play
+        const audioBlob = audio.toBlob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        const audioElement = new Audio(audioUrl);
+        await audioElement.play();
+        
+        // Clean up URL after playing
+        audioElement.onended = () => URL.revokeObjectURL(audioUrl);
+        
+    } catch (error) {
+        console.error('TTS error:', error);
+        broadcastStatus('error', 'TTS error: ' + error.message);
+    }
 }
 
 // Create generic generate function that will be reused
@@ -106,8 +129,13 @@ const generate = async (text) => {
       skip_special_tokens: true,
     });
 
-    console.log('Generation complete:', decoded[0]);
-    return decoded[0];
+    const response = decoded[0];
+    console.log('Generation complete:', response);
+    
+    // Speak the generated text
+    await speakText(response);
+    
+    return response;
   } catch (error) {
     console.error('Error in generate function:', error);
     throw error;
@@ -134,11 +162,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const result = await generate(info.selectionText);
     console.log('Generated result:', result);
 
-    // Show the result in the webpage
+    // Generate audio
+    const ttsInstance = await initTTS();
+    const audio = await ttsInstance.generate(result);
+    const audioBlob = audio.toBlob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    // Show the result in the webpage with audio
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      args: [result],
-      function: (result) => {
+      args: [result, audioUrl],
+      function: (result, audioUrl) => {
         // Create a floating div to show the result
         const chatContainer = document.createElement('div');
         chatContainer.id = 'copilot-chat-container';
@@ -157,7 +191,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           flex-direction: column;
         `;
 
-        // Add header with title and close button
+        // Add header with title, play button and close button
         const header = document.createElement('div');
         header.style.cssText = `
           padding: 12px;
@@ -166,7 +200,32 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           justify-content: space-between;
           align-items: center;
         `;
-        header.innerHTML = '<span style="font-weight: bold;">AI Response</span>';
+        
+        const titleArea = document.createElement('div');
+        titleArea.style.cssText = `
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        `;
+        titleArea.innerHTML = '<span style="font-weight: bold;">AI Response</span>';
+
+        // Add play button
+        const playBtn = document.createElement('button');
+        playBtn.innerHTML = '🔊';
+        playBtn.style.cssText = `
+          border: none;
+          background: none;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px 8px;
+        `;
+        playBtn.onclick = () => {
+          const audio = new Audio(audioUrl);
+          audio.play();
+          audio.onended = () => URL.revokeObjectURL(audioUrl);
+        };
+        titleArea.appendChild(playBtn);
+        header.appendChild(titleArea);
 
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
@@ -177,7 +236,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           font-size: 20px;
           padding: 0 4px;
         `;
-        closeBtn.onclick = () => chatContainer.remove();
+        closeBtn.onclick = () => {
+          URL.revokeObjectURL(audioUrl);
+          chatContainer.remove();
+        };
         header.appendChild(closeBtn);
 
         // Add chat content

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepSeek Chat Extension</title>
+
+    <!-- Load styles -->
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+        body {
+            width: 300px;
+            padding: 16px;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        #status {
+            padding: 8px;
+            border-radius: 4px;
+            background: #f5f5f5;
+            margin-bottom: 16px;
+        }
+        .info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+        }
+    </style>
+  <script defer src="background.js"></script><script defer src="popup.js"></script><script defer src="content.js"></script><script defer src="asr-worker.js"></script></head>
+
+  <body>
+    <div class="container">
+      <h1>DeepSeek Chat</h1>
+      <div id="model-status">
+        <div id="status-indicator"></div>
+        <div id="status">Initializing...</div>
+        <div id="loading-progress"></div>
+      </div>
+
+      <div id="chat-container">
+        <div id="chat-messages"></div>
+        <div class="input-area">
+          <textarea id="chat-input" placeholder="Type your message here..."></textarea>
+          <button id="mic-button" title="Start recording">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
+          <button id="send-button">Send</button>
+        </div>
+      </div>
+
+      <div id="console-output">
+        <h3>Console Output</h3>
+        <div id="log-messages"></div>
+      </div>
+
+      <div class="info">
+        Tip: Select text on any webpage and right-click to generate text.
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

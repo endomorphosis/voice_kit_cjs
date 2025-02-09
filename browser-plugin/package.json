@@ -4,13 +4,17 @@
   "description": "Transformers.js | Sample browser extension",
   "scripts": {
     "build": "webpack",
-    "dev": "webpack --watch"
+    "dev": "webpack --watch",
+    "clean": "rimraf build"
   },
   "type": "module",
   "author": "Hugging Face",
   "license": "Apache-2.0",
   "dependencies": {
-    "@huggingface/transformers": "^3.0.2"
+    "@huggingface/transformers": "^3.3.3",
+    "kokoro-js": "^1.1.1",
+    "onnxruntime-web": "^1.16.3",
+    "rimraf": "^5.0.5"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^12.0.2",

@@ -23,13 +23,28 @@ const config = {
         "node_modules/@huggingface/transformers",
       ),
     },
+    fallback: {
+      fs: false,
+      path: false,
+      crypto: false
+    }
   },
   output: {
     path: path.resolve(__dirname, "build"),
     filename: "[name].js",
-
-    // Otherwise we get `Uncaught ReferenceError: document is not defined`
     chunkLoading: false,
+    assetModuleFilename: '[name][ext]'
+  },
+  experiments: {
+    asyncWebAssembly: true,
+  },
+  module: {
+    rules: [
+      {
+        test: /\.wasm$/,
+        type: 'asset/resource'
+      }
+    ]
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -40,12 +55,28 @@ const config = {
       patterns: [
         {
           from: "public",
-          to: ".", // Copies to build folder
+          to: ".",
         },
         {
           from: "src/popup.css",
           to: "popup.css",
         },
+        {
+          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm'),
+          to: 'ort-wasm-simd-threaded.jsep.wasm'
+        },
+        {
+          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm'),
+          to: 'ort-wasm-simd.wasm'
+        },
+        {
+          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm-threaded.wasm'),
+          to: 'ort-wasm-threaded.wasm'
+        },
+        {
+          from: path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort-wasm.wasm'),
+          to: 'ort-wasm.wasm'
+        }
       ],
     }),
   ],
