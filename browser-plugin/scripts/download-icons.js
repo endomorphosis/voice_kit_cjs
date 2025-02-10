@@ -1,7 +1,11 @@
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
-const sharp = require('sharp');
+import https from 'node:https';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import sharp from 'sharp';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ICON_URL = 'https://avatars.githubusercontent.com/u/123265934';
 const SIZES = [16, 24, 32, 48, 128];
