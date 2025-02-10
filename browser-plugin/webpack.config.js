@@ -23,6 +23,11 @@ const config = {
         "node_modules/@huggingface/transformers",
       ),
     },
+    fallback: {
+      fs: false,
+      path: false,
+      crypto: false
+    }
   },
   output: {
     path: path.resolve(__dirname, "build"),
@@ -30,6 +35,19 @@ const config = {
 
     // Otherwise we get `Uncaught ReferenceError: document is not defined`
     chunkLoading: false,
+    webassemblyModuleFilename: "[hash].wasm"
+  },
+  experiments: {
+    asyncWebAssembly: true,
+    syncWebAssembly: true
+  },
+  module: {
+    rules: [
+      {
+        test: /\.wasm$/,
+        type: "asset/resource"
+      }
+    ]
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -46,6 +64,14 @@ const config = {
           from: "src/popup.css",
           to: "popup.css",
         },
+        {
+          from: "node_modules/onnxruntime-web/dist/*.wasm",
+          to: "[name][ext]"
+        },
+        {
+          from: "node_modules/@huggingface/transformers/dist/*.wasm",
+          to: "[name][ext]"
+        }
       ],
     }),
   ],

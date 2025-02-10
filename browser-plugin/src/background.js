@@ -16,6 +16,11 @@ const stopping_criteria = new InterruptableStoppingCriteria();
 let modelStatus = 'uninitialized';
 let loadingProgress = 0;
 
+// Note: ONNX Runtime will show warnings about some operations being assigned to CPU.
+// This is expected and optimal behavior - certain operations (especially shape-related ones) 
+// are deliberately run on CPU as they perform better there, even when using WebGPU
+// as the primary execution provider.
+
 // Function to broadcast status to all popup windows
 function broadcastStatus(status, data = null) {
     chrome.runtime.sendMessage({
@@ -52,15 +57,59 @@ class TextGenerationPipeline {
             if (progress_callback) progress_callback(data);
         };
 
-        this.tokenizer = await AutoTokenizer.from_pretrained(this.model_id, {
-            progress_callback: updateProgress,
-        });
+        // First try loading with WebGPU
+        try {
+            if (!navigator.gpu) {
+                throw new Error("WebGPU is not supported in this browser");
+            }
 
-        this.model = await AutoModelForCausalLM.from_pretrained(this.model_id, {
-            dtype: "q4f16",
-            device: "webgpu",
-            progress_callback: updateProgress,
-        });
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                throw new Error("Failed to get WebGPU adapter");
+            }
+
+            // Request device with f16 support
+            const device = await adapter.requestDevice({
+                requiredFeatures: ['shader-f16']
+            });
+
+            console.log('Using WebGPU adapter:', {
+                name: adapter.name,
+                fallbackAdapter: adapter !== await navigator.gpu.requestAdapter()
+            });
+
+            this.tokenizer = await AutoTokenizer.from_pretrained(this.model_id, {
+                progress_callback: updateProgress,
+            });
+
+            this.model = await AutoModelForCausalLM.from_pretrained(this.model_id, {
+                device: "webgpu",
+                execution_provider: ["WebGPU", "CPU"],
+                optimization_level: 99,
+                gpu_adapter: adapter,
+                gpu_device: device,
+                fallback_to_cpu: true,
+                webgpu_options: {
+                    shader_features: ['f16']
+                },
+                progress_callback: updateProgress
+            });
+
+        } catch (gpuError) {
+            // If WebGPU fails, fall back to WASM
+            console.warn('WebGPU initialization failed, falling back to WASM:', gpuError);
+            
+            this.tokenizer = await AutoTokenizer.from_pretrained(this.model_id, {
+                progress_callback: updateProgress,
+            });
+
+            this.model = await AutoModelForCausalLM.from_pretrained(this.model_id, {
+                device: "wasm",
+                progress_callback: updateProgress
+            });
+            
+            console.log('Successfully initialized on WASM');
+        }
 
         this.instance = { tokenizer: this.tokenizer, model: this.model };
         modelStatus = 'ready';
@@ -68,8 +117,11 @@ class TextGenerationPipeline {
         return this.instance;
     } catch (error) {
         modelStatus = 'error';
-        broadcastStatus('error', error.message);
-        throw error;
+        const errorMessage = error.message.includes('WebGPU') ? 
+            `WebGPU error: ${error.message}. Falling back to WASM...` :
+            error.message;
+        broadcastStatus('error', errorMessage);
+        throw new Error(errorMessage);
     }
   }
 }
