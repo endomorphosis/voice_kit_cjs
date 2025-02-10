@@ -158,9 +158,52 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let asrWorker = null;
 
-// Disable mic button permanently while ASR is disabled
-micButton.disabled = true;
-micButton.title = "Speech recognition temporarily disabled";
+// Enable mic button but show it's waiting for permissions
+micButton.disabled = false;
+micButton.title = "Click to enable speech recognition";
+
+async function checkMicrophonePermission() {
+    try {
+        // Send message to background script to handle permission check
+        const response = await chrome.runtime.sendMessage({ type: 'request_microphone' });
+        if (response.success) {
+            micButton.title = "Start recording";
+            return true;
+        }
+        
+        addLogEntry('error', 'Microphone access denied: ' + (response?.error || 'Permission not granted'));
+        return false;
+    } catch (error) {
+        console.error('Error checking microphone permission:', error);
+        addLogEntry('error', 'Error checking microphone permission: ' + error.message);
+        return false;
+    }
+}
+
+async function requestMicrophonePermissions() {
+    try {
+        const hasPermission = await checkMicrophonePermission();
+        if (!hasPermission) {
+            const instructions = document.createElement('div');
+            instructions.className = 'log-entry info';
+            instructions.innerHTML = `
+                To enable microphone access:
+                <ol>
+                    <li>Click "Allow" when prompted for microphone access</li>
+                    <li>Make sure microphone permissions are enabled in site settings</li>
+                    <li>Refresh this page after enabling permissions</li>
+                </ol>
+            `;
+            logMessages.appendChild(instructions);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('Error requesting microphone permissions:', error);
+        addLogEntry('error', 'Error requesting permissions: ' + error.message);
+        return false;
+    }
+}
 
 // Rest of ASR functionality temporarily disabled
 /*
@@ -201,39 +244,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-async function requestMicrophonePermissions() {
-    try {
-        // Request microphone access through Chrome extension API
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            audio: {
-                channelCount: 1,
-                sampleRate: 16000
-            }
-        });
-        
-        // Clean up test stream
-        stream.getTracks().forEach(track => track.stop());
-        return true;
-    } catch (error) {
-        console.error('Error requesting microphone permissions:', error);
-        if (error.name === 'NotAllowedError') {
-            addLogEntry('error', 'Microphone access was denied. Please allow access in your browser settings.');
-            const instructions = document.createElement('div');
-            instructions.className = 'log-entry info';
-            instructions.innerHTML = `
-                To enable microphone access:
-                <ol>
-                    <li>Click the camera/microphone icon in your browser's address bar</li>
-                    <li>Select "Allow" for microphone access</li>
-                    <li>Refresh this page</li>
-                </ol>
-            `;
-            logMessages.appendChild(instructions);
-        }
-        return false;
-    }
-}
-
 async function startRecording() {
     try {
         // Check permissions first
@@ -251,95 +261,87 @@ async function startRecording() {
             }
         };
         
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('Microphone access granted:', stream.getAudioTracks()[0].getSettings());
-        
-        mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'audio/webm;codecs=opus'
-        });
-        console.log('MediaRecorder created with settings:', mediaRecorder.mimeType);
-        
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                recordedChunks.push(event.data);
-                console.log('Recorded chunk size:', event.data.size);
-            }
-        };
-        
-        mediaRecorder.onerror = (event) => {
-            console.error('MediaRecorder error:', event.error);
-        };
-        
-        mediaRecorder.onstop = async () => {
-            try {
-                console.log('Recording stopped, processing audio...');
-                const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
-                console.log('Audio blob created, size:', audioBlob.size);
-                recordedChunks = [];
-                
-                // Convert audio to proper format for Whisper
-                const audioContext = new AudioContext({ sampleRate: 16000 });
-                const audioData = await audioBlob.arrayBuffer();
-                console.log('Audio data size:', audioData.byteLength);
-                
-                const audioBuffer = await audioContext.decodeAudioData(audioData);
-                console.log('Audio decoded, duration:', audioBuffer.duration);
-                
-                // Get audio data as Float32Array
-                const audio = audioBuffer.getChannelData(0);
-                console.log('Audio converted to Float32Array, length:', audio.length);
-                
-                // Send to worker for transcription
-                if (asrWorker) {
-                    asrWorker.postMessage({ buffer: audio });
-                    console.log('Audio sent to ASR worker');
-                } else {
-                    console.error('ASR worker not initialized');
+        // Request microphone access through content script
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                function: async (constraints) => {
+                    try {
+                        return await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch (error) {
+                        throw new Error('Failed to access microphone: ' + error.message);
+                    }
+                },
+                args: [constraints]
+            }).then(([result]) => {
+                if (result.error) {
+                    throw new Error(result.error);
                 }
-                
-                // Clean up
-                stream.getTracks().forEach(track => {
-                    track.stop();
-                    console.log('Audio track stopped:', track.label);
-                });
+                const stream = result;
+                setupMediaRecorder(stream);
+            }).catch(error => {
+                console.error('Failed to get microphone access:', error);
+                addLogEntry('error', error.message);
                 micButton.classList.remove('recording');
-                
-            } catch (error) {
-                console.error('Error processing recorded audio:', error);
-                if (error.name === 'InvalidStateError') {
-                    console.error('Audio context error - possible sample rate or format issue');
-                }
-                addLogEntry('error', 'Error processing audio:', error.message);
-            }
-        };
-        
-        mediaRecorder.start(1000); // Collect data in 1-second chunks
-        console.log('Recording started');
-        micButton.classList.add('recording');
+            });
+        });
         
     } catch (error) {
         console.error('Error starting recording:', {
             name: error.name,
             message: error.message,
-            constraint: error.constraint,
             stack: error.stack
         });
         
-        let errorMessage = 'Could not start recording: ';
-        if (error.name === 'NotAllowedError') {
-            // Don't show this message since we handle it in requestMicrophonePermissions
-            return;
-        } else if (error.name === 'NotFoundError') {
-            errorMessage += 'No microphone was found';
-        } else if (error.name === 'NotReadableError') {
-            errorMessage += 'Microphone is already in use by another application';
-        } else {
-            errorMessage += error.message || 'Unknown error';
-        }
-        
+        let errorMessage = 'Could not start recording: ' + (error.message || 'Unknown error');
         addLogEntry('error', errorMessage);
         micButton.classList.remove('recording');
     }
+}
+
+function setupMediaRecorder(stream) {
+    mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+    });
+    
+    mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+        }
+    };
+    
+    mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event.error);
+    };
+    
+    mediaRecorder.onstop = async () => {
+        try {
+            const audioBlob = new Blob(recordedChunks, { type: 'audio/webm' });
+            recordedChunks = [];
+            
+            const audioContext = new AudioContext({ sampleRate: 16000 });
+            const audioData = await audioBlob.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(audioData);
+            const audio = audioBuffer.getChannelData(0);
+            
+            if (asrWorker) {
+                asrWorker.postMessage({ buffer: audio });
+            } else {
+                console.error('ASR worker not initialized');
+            }
+            
+            stream.getTracks().forEach(track => track.stop());
+            micButton.classList.remove('recording');
+            
+        } catch (error) {
+            console.error('Error processing recorded audio:', error);
+            addLogEntry('error', 'Error processing audio: ' + error.message);
+        }
+    };
+    
+    mediaRecorder.start(1000);
+    console.log('Recording started');
+    micButton.classList.add('recording');
 }
 
 function stopRecording() {

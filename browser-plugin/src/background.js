@@ -206,11 +206,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
     }
     if (message.type === 'request_microphone') {
-        // Request microphone permission via activeTab
+        // Use activeTab to inject content script that requests microphone
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-            chrome.tabs.sendMessage(tabs[0].id, {type: "request_microphone"})
-                .then(response => sendResponse(response))
-                .catch(error => sendResponse({error: error.message}));
+            if (!tabs[0]?.id) {
+                sendResponse({error: 'No active tab found'});
+                return;
+            }
+            
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                function: async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        // Stop the stream immediately after permission is granted
+                        stream.getTracks().forEach(track => track.stop());
+                        return { success: true };
+                    } catch (error) {
+                        return { error: error.message };
+                    }
+                }
+            }).then(results => {
+                const result = results[0]?.result;
+                if (result?.success) {
+                    sendResponse({ success: true });
+                } else {
+                    sendResponse({ error: result?.error || 'Failed to get microphone permission' });
+                }
+            }).catch(error => {
+                sendResponse({ error: error.message });
+            });
         });
         return true;
     }

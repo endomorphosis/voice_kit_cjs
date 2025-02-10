@@ -17,6 +17,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ error: error.message });
             });
         return true;  // Required for async response
+    } else if (message.type === 'request_audio_stream') {
+        // Handle microphone stream request
+        navigator.mediaDevices.getUserMedia(message.constraints)
+            .then(stream => {
+                // Create MediaRecorder and set up recording
+                const mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    sendResponse({ type: 'audio_data', blob });
+                };
+                
+                // Store the stream and recorder references
+                window._audioStream = stream;
+                window._mediaRecorder = mediaRecorder;
+                
+                sendResponse({ success: true });
+            })
+            .catch(error => {
+                sendResponse({ error: error.message });
+            });
+        return true;  // Required for async response
+    } else if (message.type === 'stop_recording') {
+        if (window._mediaRecorder && window._mediaRecorder.state === 'recording') {
+            window._mediaRecorder.stop();
+            if (window._audioStream) {
+                window._audioStream.getTracks().forEach(track => track.stop());
+            }
+        }
+        sendResponse({ success: true });
+        return true;
     }
 });
 

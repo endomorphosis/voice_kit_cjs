@@ -34,49 +34,48 @@ const baseConfig = {
         }
       }
     ]
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: "./src/popup.html",
-      filename: "popup.html",
-      chunks: ['popup']
-    }),
-    new CopyPlugin({
-      patterns: [
-        {
-          from: "public",
-          to: ".",
-          globOptions: {
-            ignore: ["**/README.md"]
-          }
-        },
-        {
-          from: "src/popup.css",
-          to: "popup.css",
-        },
-        {
-          from: "src/content.js",
-          to: "content.js",
-        },
-        {
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
-          to: "ort-wasm-simd-threaded.wasm"
-        },
-        {
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
-          to: "ort-wasm-simd-threaded.jsep.wasm"
-        },
-        {
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort.bundle.min.mjs",
-          to: "ort.bundle.min.mjs"
-        }
-      ],
-    }),
-  ]
+  }
 };
 
-// Common output path for all configurations
+// Common output path and plugins for all configurations
 const outputPath = path.resolve(__dirname, "build");
+const commonPlugins = [
+  new CopyPlugin({
+    patterns: [
+      {
+        from: "public",
+        to: ".",
+        globOptions: {
+          ignore: ["**/README.md"]
+        }
+      },
+      {
+        from: "src/popup.css",
+        to: "popup.css",
+      },
+      {
+        from: "src/popup.html",
+        to: "popup.html",
+      },
+      {
+        from: "src/content.js",
+        to: "content.js",
+      },
+      {
+        from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
+        to: "ort-wasm-simd-threaded.wasm"
+      },
+      {
+        from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
+        to: "ort-wasm-simd-threaded.jsep.wasm"
+      },
+      {
+        from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/ort.bundle.min.mjs",
+        to: "ort.bundle.min.mjs"
+      }
+    ],
+  })
+];
 
 // Configuration for service worker (background script)
 const serviceWorkerConfig = {
@@ -92,14 +91,15 @@ const serviceWorkerConfig = {
   output: {
     path: outputPath,
     filename: "[name].js",
-    clean: true, // Only clean on first build
+    clean: false,
     publicPath: '/',
     globalObject: 'self',
     library: {
       type: 'module'
     },
     chunkFormat: 'module'
-  }
+  },
+  plugins: [...commonPlugins]
 };
 
 // Configuration for web worker (ASR worker)
@@ -123,25 +123,52 @@ const webWorkerConfig = {
       type: 'module'
     },
     chunkFormat: 'module'
-  }
+  },
+  plugins: [...commonPlugins]
 };
 
-// Configuration for web-facing scripts and static assets
-const webConfig = {
+// Configuration for content script
+const contentConfig = {
   ...baseConfig,
-  name: 'web',
+  name: 'content',
   target: 'web',
   entry: {
-    popup: "./src/popup.js",
-    content: "./src/content.js",
+    content: "./src/content.js"
   },
   output: {
     path: outputPath,
     filename: "[name].js",
     clean: false,
-    publicPath: '/',
-    chunkFormat: 'array-push'
-  }
+    iife: true
+  },
+  optimization: {
+    minimize: false
+  },
+  plugins: [...commonPlugins]
 };
 
-export default [serviceWorkerConfig, webWorkerConfig, webConfig];
+// Configuration for popup script
+const popupConfig = {
+  ...baseConfig,
+  name: 'popup',
+  target: 'web',
+  entry: {
+    popup: "./src/popup.js"
+  },
+  output: {
+    path: outputPath,
+    filename: "[name].js",
+    clean: false,
+    publicPath: '/'
+  },
+  plugins: [
+    ...commonPlugins,
+    new HtmlWebpackPlugin({
+      template: "./src/popup.html",
+      filename: "popup.html",
+      chunks: ['popup']
+    })
+  ]
+};
+
+export default [serviceWorkerConfig, webWorkerConfig, contentConfig, popupConfig];
