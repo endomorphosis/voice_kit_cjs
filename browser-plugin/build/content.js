@@ -1,0 +1,2 @@
+console.log("Checking WebGPU support..."),navigator.gpu?navigator.gpu.requestAdapter().then((e=>{e?console.log("WebGPU supported with adapter:",{name:e.name,features:Array.from(e.features)}):console.log("WebGPU adapter not available, will use WASM backend")})).catch((e=>{console.log("WebGPU initialization failed:",e)})):console.log("WebGPU not supported, will use WASM backend");
+//# sourceMappingURL=content.js.map

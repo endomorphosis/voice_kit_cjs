@@ -1,14 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Hallucinate Plugin",
-  "description": "Hallucinate Plugin",
-  "version": "0.0.1",
+  "name": "DeepSeek Chat",
+  "description": "Chat with DeepSeek AI model using WebGPU acceleration",
+  "version": "1.0",
   "permissions": [
-    "activeTab",
-    "scripting",
     "contextMenus",
-    "storage",
-    "unlimitedStorage"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "*://*/*"
@@ -23,22 +21,25 @@
       "js": ["content.js"]
     }
   ],
-  "minimum_chrome_version": "92",
+  "minimum_chrome_version": "113",
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
-      "24": "icons/icon24.png",
-      "32": "icons/icon32.png"
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     },
-    "default_title": "Hallucinate Plugin",
+    "default_title": "DeepSeek Chat",
     "default_popup": "popup.html"
-  },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'"
   },
   "icons": {
     "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [{
+    "resources": ["wasm/*", "popup.js", "vendors.js", "runtime.js", "*.wasm"],
+    "matches": ["<all_urls>"]
+  }]
 }

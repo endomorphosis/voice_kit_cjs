@@ -25,6 +25,49 @@ h2 {
   padding: 16px;
 }
 
+// Add loading spinner styles
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 3px solid #1976d2;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+// Improve error message styles
+.error-message {
+  background: #ffebee;
+  color: #c62828;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.error-message.recoverable {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.memory-warning {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 html,
 body {
   min-width: 400px;
@@ -214,4 +257,21 @@ body {
   100% {
     box-shadow: 0 0 0 0 rgba(239, 83, 80, 0);
   }
+}
+
+/* Styles for disabled states */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  background: #cccccc !important;
+  color: #666666 !important;
+}
+
+#mic-button:disabled {
+  background: transparent !important;
+  border-color: #cccccc;
+}
+
+#mic-button:disabled svg {
+  stroke: #999999;
 }

@@ -1,11 +1,11 @@
+// ASR worker for speech recognition
+import "@huggingface/transformers";
 import { pipeline } from "@huggingface/transformers";
 
 const SAMPLE_RATE = 16000;
 
-// Note: ONNX Runtime will show warnings about some operations being assigned to CPU.
-// This is expected and optimal behavior - certain operations (especially shape-related ones) 
-// are deliberately run on CPU as they perform better there, even when using WebGPU
-// as the primary execution provider. You can safely ignore these warnings.
+// Set WASM path for workers
+globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
 
 // Initialize whisper model for speech recognition
 console.log('Loading ASR model...');
@@ -24,16 +24,40 @@ async function initializeASR() {
                 throw new Error("Failed to get WebGPU adapter");
             }
 
-            // Check for f16 support
-            const device = await adapter.requestDevice({
-                requiredFeatures: ['shader-f16']
-            });
+            // Try to get device with f16 support, but don't require it
+            let device;
+            let features = [];
+            try {
+                device = await adapter.requestDevice({
+                    requiredFeatures: ['shader-f16']
+                });
+                features.push('shader-f16');
+            } catch (e) {
+                console.log('F16 shaders not supported, using standard WebGPU');
+                device = await adapter.requestDevice();
+            }
 
             console.log('Using WebGPU adapter:', {
                 name: adapter.name,
-                fallbackAdapter: adapter !== await navigator.gpu.requestAdapter(),
+                features: Array.from(adapter.features),
                 platform: navigator.platform
             });
+
+            // Base config for ONNX Runtime
+            const onnxConfig = {
+                execution_provider: ["WebGPU", "CPU"],
+                optimization_level: 99,
+                gpu_adapter: adapter,
+                gpu_device: device,
+                fallback_to_cpu: true
+            };
+
+            // Add f16 settings only if supported
+            if (features.includes('shader-f16')) {
+                onnxConfig.webgpu_options = {
+                    shader_features: ['f16']
+                };
+            }
 
             transcriber = await pipeline(
                 "automatic-speech-recognition",
@@ -42,36 +66,9 @@ async function initializeASR() {
                     device: "webgpu",
                     quantized: true,
                     model_kwargs: {
-                        encoder_config: { 
-                            execution_provider: ["WebGPU", "CPU"],
-                            optimization_level: 99,
-                            gpu_adapter: adapter,
-                            gpu_device: device,
-                            fallback_to_cpu: true,
-                            webgpu_options: {
-                                shader_features: ['f16']
-                            }
-                        },
-                        decoder_config: { 
-                            execution_provider: ["WebGPU", "CPU"],
-                            optimization_level: 99,
-                            gpu_adapter: adapter,
-                            gpu_device: device,
-                            fallback_to_cpu: true,
-                            webgpu_options: {
-                                shader_features: ['f16']
-                            }
-                        },
-                        decoder_merged_config: { 
-                            execution_provider: ["WebGPU", "CPU"],
-                            optimization_level: 99,
-                            gpu_adapter: adapter,
-                            gpu_device: device,
-                            fallback_to_cpu: true,
-                            webgpu_options: {
-                                shader_features: ['f16']
-                            }
-                        }
+                        encoder_config: onnxConfig,
+                        decoder_config: onnxConfig,
+                        decoder_merged_config: onnxConfig
                     }
                 }
             );

@@ -1,14 +1,52 @@
-// popup.js - handles interaction with the extension's popup, sends requests to the
-// service worker (background.js), and updates the popup's UI (popup.html) on completion.
-
+// popup.js - handles interaction with the extension's popup UI
 import { ACTION_NAME } from "./constants.js";
 
-// Import only what we need
+// Set WASM path for workers
+globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
+
+// Get UI elements
 const outputElement = document.getElementById("output");
+const chatInput = document.getElementById('chat-input');
+const sendButton = document.getElementById('send-button');
+const chatMessages = document.getElementById('chat-messages');
+const micButton = document.getElementById('mic-button');
+const logMessages = document.getElementById('log-messages');
+
+// Keep track of connection status
+let isConnected = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 3;
+
+// Function to check connection with background script
+async function checkConnection() {
+    try {
+        await chrome.runtime.sendMessage({ type: 'check_status' });
+        isConnected = true;
+        reconnectAttempts = 0;
+        return true;
+    } catch (error) {
+        console.warn('Connection error:', error);
+        isConnected = false;
+        
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            reconnectAttempts++;
+            console.log(`Retrying connection... Attempt ${reconnectAttempts}`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * reconnectAttempts));
+            return checkConnection();
+        } else {
+            updateStatus({
+                status: 'error',
+                data: 'Could not connect to extension. Please try reloading.'
+            });
+            return false;
+        }
+    }
+}
 
 // Listen for messages from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Popup received message:', message);
+    isConnected = true;
     updateStatus(message);
 });
 
@@ -37,14 +75,31 @@ function updateStatus(message) {
     }
 }
 
-// Check initial status when popup opens
-document.addEventListener('DOMContentLoaded', () => {
+// Enhanced initialization
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('Popup opened');
-    chrome.runtime.sendMessage({ type: 'check_status' });
+    
+    // Initial connection check
+    if (await checkConnection()) {
+        console.log('Connected to extension');
+    }
+    
+    // Set up periodic connection checks
+    setInterval(checkConnection, 5000);
+    
+    try {
+        await Promise.all([
+            initASR(),
+            cacheIcon()
+        ]);
+        console.log('Initialization complete');
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        addLogEntry('error', 'Failed to initialize: ' + error.message);
+    }
 });
 
 // Console logging override
-const logMessages = document.getElementById('log-messages');
 const originalConsole = {
     log: console.log,
     error: console.error,
@@ -67,10 +122,6 @@ console.error = (...args) => addLogEntry('error', ...args);
 console.info = (...args) => addLogEntry('info', ...args);
 
 // Chat functionality
-const chatInput = document.getElementById('chat-input');
-const sendButton = document.getElementById('send-button');
-const chatMessages = document.getElementById('chat-messages');
-
 function addMessage(content, isUser = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
@@ -83,25 +134,87 @@ async function sendMessage() {
     const text = chatInput.value.trim();
     if (!text) return;
 
-    addMessage(text, true);
+    // Check connection first
+    if (!isConnected && !await checkConnection()) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'message assistant error-message';
+        errorDiv.textContent = 'Not connected to extension. Please reload the popup.';
+        chatMessages.appendChild(errorDiv);
+        return;
+    }
+
+    // Show loading state
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message user';
+    messageDiv.textContent = text;
+    chatMessages.appendChild(messageDiv);
+    
+    // Clear input and add loading indicator
     chatInput.value = '';
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'message assistant';
+    loadingDiv.innerHTML = '<span class="loading-spinner"></span> Generating response...';
+    chatMessages.appendChild(loadingDiv);
+    chatMessages.scrollTo(0, chatMessages.scrollHeight);
     
     try {
-        const response = await chrome.runtime.sendMessage({
-            action: 'generate',
-            text: text
+        const response = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({
+                action: 'generate',
+                text: text
+            }, response => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+                resolve(response);
+            });
         });
         
-        if (response.error) {
-            console.error(response.error);
-            addMessage('Error: ' + response.error);
+        // Remove loading indicator
+        loadingDiv.remove();
+        
+        if (response?.error) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = `message assistant error-message ${response.error.includes('memory') ? 'recoverable' : ''}`;
+            
+            // Format error message for users
+            let errorMessage = response.error;
+            if (response.error.includes('1879778072') || response.error.includes('memory')) {
+                errorMessage = 'The message was too long to process. Try sending a shorter message or breaking it into smaller parts.';
+            }
+            
+            errorDiv.textContent = errorMessage;
+            chatMessages.appendChild(errorDiv);
+            
+            // Add memory usage warning if relevant
+            if (response.error.includes('memory')) {
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'memory-warning';
+                warningDiv.textContent = 'Tip: Keep messages under 2000 characters for best performance.';
+                chatMessages.appendChild(warningDiv);
+            }
         } else {
-            addMessage(response);
+            const responseDiv = document.createElement('div');
+            responseDiv.className = 'message assistant';
+            responseDiv.textContent = response;
+            chatMessages.appendChild(responseDiv);
         }
     } catch (error) {
+        // Remove loading indicator
+        loadingDiv.remove();
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'message assistant error-message';
+        errorDiv.textContent = 'Error: ' + (error.message || 'Could not connect to extension. Please try reloading.');
+        chatMessages.appendChild(errorDiv);
         console.error('Error sending message:', error);
-        addMessage('Error: ' + error.message);
+        
+        // Try to reconnect
+        checkConnection();
     }
+    
+    chatMessages.scrollTo(0, chatMessages.scrollHeight);
 }
 
 sendButton.addEventListener('click', sendMessage);
@@ -113,7 +226,6 @@ chatInput.addEventListener('keypress', (e) => {
 });
 
 // Speech recognition setup
-const micButton = document.getElementById('mic-button');
 let mediaRecorder = null;
 let recordedChunks = [];
 let asrWorker = null;
@@ -174,20 +286,6 @@ async function cacheIcon() {
         console.error('Failed to cache icon:', error);
     }
 }
-
-// Initialize when popup loads
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        await Promise.all([
-            initASR(),
-            cacheIcon()
-        ]);
-        console.log('Initialization complete');
-    } catch (error) {
-        console.error('Initialization failed:', error);
-        addLogEntry('error', 'Failed to initialize: ' + error.message);
-    }
-});
 
 async function requestMicrophonePermissions() {
     try {
