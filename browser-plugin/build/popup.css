@@ -25,7 +25,7 @@ h2 {
   padding: 16px;
 }
 
-// Add loading spinner styles
+/* Add loading spinner styles */
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -43,7 +43,7 @@ h2 {
   vertical-align: middle;
 }
 
-// Improve error message styles
+/* Improve error message styles */
 .error-message {
   background: #ffebee;
   color: #c62828;
@@ -78,6 +78,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 300px;
+  padding: 16px;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 #text {
@@ -274,4 +277,17 @@ button:disabled {
 
 #mic-button:disabled svg {
   stroke: #999999;
+}
+
+#status {
+  padding: 8px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  margin-bottom: 16px;
+}
+
+.info {
+  font-size: 12px;
+  color: #666;
+  margin-top: 16px;
 }

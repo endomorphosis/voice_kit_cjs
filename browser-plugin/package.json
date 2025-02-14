@@ -4,10 +4,9 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "build": "npm run clean && webpack --mode production && npm run copy-wasm",
+    "build": "npm run clean && webpack --mode production",
     "dev": "webpack --mode development --watch",
-    "clean": "rimraf build",
-    "copy-wasm": "mkdir -p build/wasm && cp node_modules/@huggingface/transformers/dist/*.wasm build/wasm/ && cp node_modules/onnxruntime-web/dist/*.wasm build/wasm/"
+    "clean": "rimraf build"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +22,7 @@
     "@babel/preset-env": "^7.23.5",
     "babel-loader": "^9.1.3",
     "copy-webpack-plugin": "^12.0.2",
+    "cpy-cli": "^5.0.0",
     "html-webpack-plugin": "^5.6.0",
     "rimraf": "^5.0.5",
     "webpack": "^5.89.0",

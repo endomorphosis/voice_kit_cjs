@@ -1,21 +1,51 @@
 // popup.js - handles interaction with the extension's popup UI
 import { ACTION_NAME } from "./constants.js";
+import "./asr-worker.js";
 
-// Set WASM path for workers
-globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
-
-// Get UI elements
-const outputElement = document.getElementById("output");
-const chatInput = document.getElementById('chat-input');
-const sendButton = document.getElementById('send-button');
-const chatMessages = document.getElementById('chat-messages');
-const micButton = document.getElementById('mic-button');
-const logMessages = document.getElementById('log-messages');
+// Initialize required globals as soon as module loads
+globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = chrome.runtime.getURL('wasm/');
+globalThis.wasmEvalSupported = true;
 
 // Keep track of connection status
 let isConnected = false;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 3;
+
+// UI element references
+let chatInput, sendButton, chatMessages, micButton, logMessages;
+
+// Initialize all UI references and handlers
+function initializeUI() {
+    chatInput = document.getElementById('chat-input');
+    sendButton = document.getElementById('send-button');
+    chatMessages = document.getElementById('chat-messages');
+    micButton = document.getElementById('mic-button');
+    logMessages = document.getElementById('log-messages');
+
+    if (sendButton) {
+        sendButton.disabled = false;
+        sendButton.addEventListener('click', sendMessage);
+    }
+
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+
+    if (micButton) {
+        micButton.addEventListener('click', () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+    }
+}
 
 // Function to check connection with background script
 async function checkConnection() {
@@ -78,6 +108,7 @@ function updateStatus(message) {
 // Enhanced initialization
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Popup opened');
+    initializeUI();
     
     // Initial connection check
     if (await checkConnection()) {
@@ -217,57 +248,91 @@ async function sendMessage() {
     chatMessages.scrollTo(0, chatMessages.scrollHeight);
 }
 
-sendButton.addEventListener('click', sendMessage);
-chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
-
 // Speech recognition setup
+let worker = null;
 let mediaRecorder = null;
 let recordedChunks = [];
-let asrWorker = null;
 
+// Initialize ASR when needed
 async function initASR() {
+    if (worker) return; // Don't initialize if already running
+
     try {
-        console.log('Initializing ASR worker...');
-        asrWorker = new Worker(new URL('./asr-worker.js', import.meta.url), { type: 'module' });
-        
-        asrWorker.onerror = (error) => {
-            console.error('ASR worker error:', error);
-            addLogEntry('error', 'ASR worker error:', error.message);
-        };
+        worker = new Worker(chrome.runtime.getURL('asr-worker.js'), { 
+            type: 'module',
+            name: 'asr-worker'
+        });
         
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
+                cleanupWorker();
                 reject(new Error('ASR worker initialization timed out'));
-            }, 30000); // 30 second timeout
-            
-            asrWorker.onmessage = (event) => {
-                const { type, text, error } = event.data;
-                
-                if (type === 'ready') {
-                    console.log('ASR worker ready');
-                    clearTimeout(timeout);
-                    micButton.disabled = false;
-                    resolve();
-                } else if (type === 'transcription') {
-                    chatInput.value = (chatInput.value + ' ' + text).trim();
-                } else if (type === 'error') {
-                    console.error('ASR error:', error);
-                    addLogEntry('error', 'ASR error:', error);
+            }, 30000);
+
+            worker.onmessage = (event) => {
+                const { type, text, error, data } = event.data;
+                switch (type) {
+                    case 'ready':
+                        console.log('ASR worker ready');
+                        clearTimeout(timeout);
+                        enableMicButton();
+                        resolve();
+                        break;
+                    case 'transcription':
+                        updateChatInput(text);
+                        break;
+                    case 'loading':
+                        console.log('ASR loading progress:', data);
+                        break;
+                    case 'error':
+                        console.error('ASR error:', error);
+                        addLogEntry('error', 'ASR error: ' + error);
+                        break;
                 }
+            };
+
+            worker.onerror = (error) => {
+                console.error('ASR worker error:', error);
+                addLogEntry('error', 'ASR worker error: ' + error.message);
+                clearTimeout(timeout);
+                cleanupWorker();
+                reject(error);
             };
         });
     } catch (error) {
         console.error('Error initializing ASR:', error);
-        addLogEntry('error', 'Failed to initialize speech recognition');
-        micButton.disabled = true;
+        addLogEntry('error', 'Failed to initialize speech recognition: ' + error.message);
+        disableMicButton();
         throw error;
     }
 }
+
+function cleanupWorker() {
+    if (worker) {
+        worker.terminate();
+        worker = null;
+    }
+}
+
+function enableMicButton() {
+    const micButton = document.getElementById('mic-button');
+    if (micButton) micButton.disabled = false;
+}
+
+function disableMicButton() {
+    const micButton = document.getElementById('mic-button');
+    if (micButton) micButton.disabled = true;
+}
+
+function updateChatInput(text) {
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.value = (chatInput.value + ' ' + text).trim();
+    }
+}
+
+// Clean up resources when window closes
+window.addEventListener('unload', cleanupWorker);
 
 // Disable mic button initially
 micButton.disabled = true;
@@ -379,8 +444,8 @@ async function startRecording() {
                 console.log('Audio converted to Float32Array, length:', audio.length);
                 
                 // Send to worker for transcription
-                if (asrWorker) {
-                    asrWorker.postMessage({ buffer: audio });
+                if (worker) {
+                    worker.postMessage({ buffer: audio });
                     console.log('Audio sent to ASR worker');
                 } else {
                     console.error('ASR worker not initialized');

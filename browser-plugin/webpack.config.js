@@ -9,13 +9,13 @@ const __dirname = path.dirname(__filename);
 /** @type {import('webpack').Configuration} */
 const config = {
   mode: "development",
-  devtool: "source-map", // Changed from inline-source-map for better security
+  devtool: false,
   target: 'web',
   entry: {
-    background: "./src/background.js",
     popup: "./src/popup.js",
-    content: "./src/content.js",
-    "asr-worker": "./src/asr-worker.js",
+    'asr-worker': "./src/asr-worker.js",
+    background: "./src/background.js",
+    content: "./src/content.js"
   },
   resolve: {
     alias: {
@@ -28,29 +28,26 @@ const config = {
       fs: false,
       path: false,
       crypto: false
-    },
-    extensions: ['.js', '.mjs', '.cjs'],
+    }
   },
   output: {
     path: path.resolve(__dirname, "build"),
     filename: "[name].js",
     clean: true,
-    publicPath: '/',
-    assetModuleFilename: 'assets/[hash][ext][query]',
-    webassemblyModuleFilename: 'wasm/[hash].wasm'
-  },
-  experiments: {
-    asyncWebAssembly: true,
-    syncWebAssembly: true
+    iife: false,
+    module: false,
+    environment: {
+      dynamicImport: false,
+      module: false,
+      destructuring: true,
+      forOf: true
+    }
   },
   module: {
     rules: [
       {
-        test: /\.m?js$/,
-        resolve: {
-          fullySpecified: false
-        },
-        type: 'javascript/auto',
+        test: /\.js$/,
+        exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
           options: {
@@ -58,21 +55,10 @@ const config = {
               ['@babel/preset-env', {
                 targets: {
                   chrome: "113"
-                },
-                modules: false
+                }
               }]
-            ],
-            compact: true,
-            minified: true
+            ]
           }
-        },
-        exclude: /node_modules/
-      },
-      {
-        test: /\.wasm$/,
-        type: "asset/resource",
-        generator: {
-          filename: 'wasm/[name][ext]'
         }
       }
     ]
@@ -82,20 +68,25 @@ const config = {
       template: "./src/popup.html",
       filename: "popup.html",
       chunks: ['popup'],
-      minify: {
-        collapseWhitespace: true,
-        removeComments: true,
-        removeRedundantAttributes: true,
-        removeScriptTypeAttributes: true,
-        removeStyleLinkTypeAttributes: true,
-        useShortDoctype: true
-      }
+      inject: 'head',
+      scriptLoading: 'defer',
+      minify: false
     }),
     new CopyPlugin({
       patterns: [
         {
           from: "public",
           to: ".",
+          transform(content, path) {
+            if (path.endsWith('manifest.json')) {
+              const manifest = JSON.parse(content);
+              manifest.content_security_policy = {
+                extension_pages: "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; child-src 'self'"
+              };
+              return JSON.stringify(manifest, null, 2);
+            }
+            return content;
+          }
         },
         {
           from: "src/popup.css",
@@ -103,41 +94,21 @@ const config = {
         },
         {
           from: "node_modules/onnxruntime-web/dist/*.wasm",
-          to: "wasm/[name][ext]"
+          to: "wasm/[name][ext]",
+          noErrorOnMissing: true
         },
         {
           from: "node_modules/@huggingface/transformers/dist/*.wasm",
-          to: "wasm/[name][ext]"
+          to: "wasm/[name][ext]",
+          noErrorOnMissing: true
         }
       ],
-    }),
+    })
   ],
   optimization: {
-    minimize: true,
-    moduleIds: 'deterministic',
-    chunkIds: 'deterministic',
-    splitChunks: {
-      chunks: 'all',
-      minSize: 20000,
-      minRemainingSize: 0,
-      minChunks: 1,
-      maxAsyncRequests: 30,
-      maxInitialRequests: 30,
-      enforceSizeThreshold: 50000,
-      cacheGroups: {
-        defaultVendors: {
-          test: /[\\/]node_modules[\\/]/,
-          priority: -10,
-          reuseExistingChunk: true,
-          name: 'vendors'
-        },
-        default: {
-          minChunks: 2,
-          priority: -20,
-          reuseExistingChunk: true
-        }
-      }
-    }
+    minimize: false,
+    splitChunks: false,
+    runtimeChunk: false
   }
 };
 

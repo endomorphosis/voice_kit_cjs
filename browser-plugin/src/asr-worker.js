@@ -4,8 +4,10 @@ import { pipeline } from "@huggingface/transformers";
 
 const SAMPLE_RATE = 16000;
 
-// Set WASM path for workers
-globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
+// Set WASM path statically
+self.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
+
+console.log('ASR Worker initialized with WASM path:', self.__TRANSFORMER_WORKER_WASM_PATH__);
 
 // Initialize whisper model for speech recognition
 console.log('Loading ASR model...');
@@ -77,35 +79,51 @@ async function initializeASR() {
             // If WebGPU fails, fall back to WASM
             console.warn('WebGPU initialization failed, falling back to WASM:', gpuError);
             
+            console.log('Initializing WASM backend...');
+            
             transcriber = await pipeline(
                 "automatic-speech-recognition",
                 "onnx-community/whisper-tiny.en",
                 {
                     device: "wasm",
-                    quantized: true
+                    quantized: true,
+                    progress_callback: (data) => {
+                        console.log('Loading progress:', data);
+                        self.postMessage({ type: 'loading', data });
+                    },
+                    wasmPaths: self.__TRANSFORMER_WORKER_WASM_PATH__,
+                    local_files_only: false
                 }
             );
             
             console.log('Successfully initialized ASR on WASM');
         }
 
-        // Test the pipeline with empty audio to compile shaders/warm up
+        // Test the pipeline
         console.log('Testing ASR pipeline...');
-        await transcriber(new Float32Array(SAMPLE_RATE));
+        const testResult = await transcriber(new Float32Array(SAMPLE_RATE));
+        console.log('ASR test successful:', testResult);
         self.postMessage({ type: "ready" });
 
     } catch (error) {
         console.error('Failed to initialize ASR model:', error);
-        const errorMessage = error.message.includes('WebGPU') ? 
-            `WebGPU error: ${error.message}. Try updating your browser or graphics drivers.` :
-            error.message;
-        self.postMessage({ type: "error", error: errorMessage });
-        throw new Error(errorMessage);
+        self.postMessage({ 
+            type: "error", 
+            error: error.toString(),
+            details: {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            }
+        });
+        throw error;
     }
 }
 
 // Initialize the ASR pipeline
-initializeASR();
+initializeASR().catch(error => {
+    console.error('ASR initialization failed:', error);
+});
 
 // Handle audio transcription requests
 self.onmessage = async (event) => {
