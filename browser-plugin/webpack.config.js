@@ -10,12 +10,15 @@ const __dirname = path.dirname(__filename);
 const config = {
   mode: "development",
   devtool: false,
-  target: 'webworker',
+  target: 'web',
   entry: {
     popup: "./src/popup.js",
     'asr-worker': "./src/asr-worker.js",
     background: "./src/background.js",
     content: "./src/content.js"
+  },
+  experiments: {
+    outputModule: true
   },
   resolve: {
     alias: {
@@ -34,14 +37,19 @@ const config = {
     path: path.resolve(__dirname, "build"),
     filename: "[name].js",
     clean: true,
+    publicPath: '',
+    module: true,
     environment: {
-      module: true
+      module: true,
+      dynamicImport: true
     }
   },
-  experiments: {
-    topLevelAwait: true
-  },
   module: {
+    parser: {
+      javascript: {
+        importMeta: false
+      }
+    },
     rules: [
       {
         test: /\.js$/,

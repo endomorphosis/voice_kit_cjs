@@ -1,5 +1,3 @@
-/******/ (() => { // webpackBootstrap
-/******/ 	"use strict";
 // content.js - the content script which runs in the context of web pages, and has access
 // to the DOM and other web APIs.
 
@@ -131,5 +129,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // You can also add your own UI elements or handlers here to trigger text generation
 // The context menu integration is handled by background.js
-/******/ })()
-;
