@@ -37,6 +37,7 @@ function initializeUI() {
     }
 
     if (micButton) {
+        micButton.disabled = true; // Initially disable mic button
         micButton.addEventListener('click', () => {
             if (!mediaRecorder || mediaRecorder.state === 'inactive') {
                 startRecording();
@@ -334,9 +335,6 @@ function updateChatInput(text) {
 // Clean up resources when window closes
 window.addEventListener('unload', cleanupWorker);
 
-// Disable mic button initially
-micButton.disabled = true;
-
 // Download and cache the Copilot avatar
 async function cacheIcon() {
     try {
@@ -505,13 +503,4 @@ function stopRecording() {
 // Initialize ASR when popup is loaded
 document.addEventListener('DOMContentLoaded', () => {
     initASR();
-});
-
-// Add click handler for mic button
-micButton.addEventListener('click', () => {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-        startRecording();
-    } else {
-        stopRecording();
-    }
 });
