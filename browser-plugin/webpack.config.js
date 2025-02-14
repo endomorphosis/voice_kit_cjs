@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const config = {
   mode: "development",
   devtool: false,
-  target: 'web',
+  target: 'webworker',
   entry: {
     popup: "./src/popup.js",
     'asr-worker': "./src/asr-worker.js",
@@ -34,14 +34,12 @@ const config = {
     path: path.resolve(__dirname, "build"),
     filename: "[name].js",
     clean: true,
-    iife: false,
-    module: false,
     environment: {
-      dynamicImport: false,
-      module: false,
-      destructuring: true,
-      forOf: true
+      module: true
     }
+  },
+  experiments: {
+    topLevelAwait: true
   },
   module: {
     rules: [
@@ -55,7 +53,8 @@ const config = {
               ['@babel/preset-env', {
                 targets: {
                   chrome: "113"
-                }
+                },
+                modules: false
               }]
             ]
           }
@@ -69,7 +68,7 @@ const config = {
       filename: "popup.html",
       chunks: ['popup'],
       inject: 'head',
-      scriptLoading: 'defer',
+      scriptLoading: 'module',
       minify: false
     }),
     new CopyPlugin({

@@ -1,4 +1,5 @@
 // background.js - Handles requests from the UI, runs the model, then sends back a response
+import "@huggingface/transformers";
 import {
   AutoTokenizer,
   AutoModelForCausalLM,

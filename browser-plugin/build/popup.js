@@ -1,4 +1,5 @@
-/******/ var __webpack_modules__ = ({
+/******/ (() => { // webpackBootstrap
+/******/ 	var __webpack_modules__ = ({
 
 /***/ 45:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
@@ -31474,120 +31475,28 @@ class WhisperTextStreamer extends TextStreamer {
 
 
 const SAMPLE_RATE = 16000;
-
-// Set WASM path statically
-self.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
-console.log('ASR Worker initialized with WASM path:', self.__TRANSFORMER_WORKER_WASM_PATH__);
-
-// Initialize whisper model for speech recognition
-console.log('Loading ASR model...');
 let transcriber;
-async function initializeASR() {
-  try {
-    // First try with WebGPU
-    try {
-      if (!navigator.gpu) {
-        throw new Error("WebGPU is not supported in this browser");
-      }
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        throw new Error("Failed to get WebGPU adapter");
-      }
 
-      // Try to get device with f16 support, but don't require it
-      let device;
-      let features = [];
-      try {
-        device = await adapter.requestDevice({
-          requiredFeatures: ['shader-f16']
-        });
-        features.push('shader-f16');
-      } catch (e) {
-        console.log('F16 shaders not supported, using standard WebGPU');
-        device = await adapter.requestDevice();
-      }
-      console.log('Using WebGPU adapter:', {
-        name: adapter.name,
-        features: Array.from(adapter.features),
-        platform: navigator.platform
-      });
-
-      // Base config for ONNX Runtime
-      const onnxConfig = {
-        execution_provider: ["WebGPU", "CPU"],
-        optimization_level: 99,
-        gpu_adapter: adapter,
-        gpu_device: device,
-        fallback_to_cpu: true
-      };
-
-      // Add f16 settings only if supported
-      if (features.includes('shader-f16')) {
-        onnxConfig.webgpu_options = {
-          shader_features: ['f16']
-        };
-      }
-      transcriber = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny.en", {
-        device: "webgpu",
-        quantized: true,
-        model_kwargs: {
-          encoder_config: onnxConfig,
-          decoder_config: onnxConfig,
-          decoder_merged_config: onnxConfig
-        }
-      });
-    } catch (gpuError) {
-      // If WebGPU fails, fall back to WASM
-      console.warn('WebGPU initialization failed, falling back to WASM:', gpuError);
-      console.log('Initializing WASM backend...');
-      transcriber = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny.en", {
-        device: "wasm",
-        quantized: true,
-        progress_callback: data => {
-          console.log('Loading progress:', data);
-          self.postMessage({
-            type: 'loading',
-            data
-          });
-        },
-        wasmPaths: self.__TRANSFORMER_WORKER_WASM_PATH__,
-        local_files_only: false
-      });
-      console.log('Successfully initialized ASR on WASM');
-    }
-
-    // Test the pipeline
-    console.log('Testing ASR pipeline...');
-    const testResult = await transcriber(new Float32Array(SAMPLE_RATE));
-    console.log('ASR test successful:', testResult);
-    self.postMessage({
-      type: "ready"
-    });
-  } catch (error) {
-    console.error('Failed to initialize ASR model:', error);
-    self.postMessage({
-      type: "error",
-      error: error.toString(),
-      details: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      }
-    });
-    throw error;
-  }
-}
-
-// Initialize the ASR pipeline
-initializeASR().catch(error => {
-  console.error('ASR initialization failed:', error);
-});
-
-// Handle audio transcription requests
+// Wait for initialization message with WASM path
 self.onmessage = async event => {
   const {
+    type,
+    wasmPath,
     buffer
   } = event.data;
+  if (type === 'init') {
+    // Set WASM path from initialization message
+    self.__TRANSFORMER_WORKER_WASM_PATH__ = wasmPath;
+    console.log('ASR Worker initialized with WASM path:', wasmPath);
+    try {
+      await initializeASR();
+    } catch (error) {
+      console.error('ASR initialization failed:', error);
+    }
+    return;
+  }
+
+  // Handle audio transcription requests
   if (!buffer || !(buffer instanceof Float32Array)) {
     self.postMessage({
       type: "error",
@@ -31616,159 +31525,190 @@ self.onmessage = async event => {
     });
   }
 };
+async function initializeASR() {
+  try {
+    console.log('Initializing WASM backend...');
+    transcriber = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny.en", {
+      device: "wasm",
+      quantized: true,
+      progress_callback: data => {
+        console.log('Loading progress:', data);
+        self.postMessage({
+          type: 'loading',
+          data
+        });
+      },
+      wasmPaths: self.__TRANSFORMER_WORKER_WASM_PATH__,
+      local_files_only: false
+    });
+    console.log('Successfully initialized ASR on WASM');
+
+    // Test the pipeline
+    console.log('Testing ASR pipeline...');
+    const testResult = await transcriber(new Float32Array(SAMPLE_RATE));
+    console.log('ASR test successful:', testResult);
+    self.postMessage({
+      type: "ready"
+    });
+  } catch (error) {
+    console.error('Failed to initialize ASR model:', error);
+    self.postMessage({
+      type: "error",
+      error: error.toString(),
+      details: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      }
+    });
+    throw error;
+  }
+}
 
 /***/ })
 
-/******/ });
+/******/ 	});
 /************************************************************************/
-/******/ // The module cache
-/******/ var __webpack_module_cache__ = {};
-/******/ 
-/******/ // The require function
-/******/ function __webpack_require__(moduleId) {
-/******/ 	// Check if module is in cache
-/******/ 	var cachedModule = __webpack_module_cache__[moduleId];
-/******/ 	if (cachedModule !== undefined) {
-/******/ 		return cachedModule.exports;
+/******/ 	// The module cache
+/******/ 	var __webpack_module_cache__ = {};
+/******/ 	
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/ 		// Check if module is in cache
+/******/ 		var cachedModule = __webpack_module_cache__[moduleId];
+/******/ 		if (cachedModule !== undefined) {
+/******/ 			return cachedModule.exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = __webpack_module_cache__[moduleId] = {
+/******/ 			// no module.id needed
+/******/ 			// no module.loaded needed
+/******/ 			exports: {}
+/******/ 		};
+/******/ 	
+/******/ 		// Execute the module function
+/******/ 		__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
+/******/ 	
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
 /******/ 	}
-/******/ 	// Create a new module (and put it into the cache)
-/******/ 	var module = __webpack_module_cache__[moduleId] = {
-/******/ 		// no module.id needed
-/******/ 		// no module.loaded needed
-/******/ 		exports: {}
-/******/ 	};
-/******/ 
-/******/ 	// Execute the module function
-/******/ 	__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
-/******/ 
-/******/ 	// Return the exports of the module
-/******/ 	return module.exports;
-/******/ }
-/******/ 
-/******/ // expose the modules object (__webpack_modules__)
-/******/ __webpack_require__.m = __webpack_modules__;
-/******/ 
+/******/ 	
+/******/ 	// expose the modules object (__webpack_modules__)
+/******/ 	__webpack_require__.m = __webpack_modules__;
+/******/ 	
 /************************************************************************/
-/******/ /* webpack/runtime/create fake namespace object */
-/******/ (() => {
-/******/ 	var getProto = Object.getPrototypeOf ? (obj) => (Object.getPrototypeOf(obj)) : (obj) => (obj.__proto__);
-/******/ 	var leafPrototypes;
-/******/ 	// create a fake namespace object
-/******/ 	// mode & 1: value is a module id, require it
-/******/ 	// mode & 2: merge all properties of value into the ns
-/******/ 	// mode & 4: return value when already ns object
-/******/ 	// mode & 16: return value when it's Promise-like
-/******/ 	// mode & 8|1: behave like require
-/******/ 	__webpack_require__.t = function(value, mode) {
-/******/ 		if(mode & 1) value = this(value);
-/******/ 		if(mode & 8) return value;
-/******/ 		if(typeof value === 'object' && value) {
-/******/ 			if((mode & 4) && value.__esModule) return value;
-/******/ 			if((mode & 16) && typeof value.then === 'function') return value;
-/******/ 		}
-/******/ 		var ns = Object.create(null);
-/******/ 		__webpack_require__.r(ns);
-/******/ 		var def = {};
-/******/ 		leafPrototypes = leafPrototypes || [null, getProto({}), getProto([]), getProto(getProto)];
-/******/ 		for(var current = mode & 2 && value; typeof current == 'object' && !~leafPrototypes.indexOf(current); current = getProto(current)) {
-/******/ 			Object.getOwnPropertyNames(current).forEach((key) => (def[key] = () => (value[key])));
-/******/ 		}
-/******/ 		def['default'] = () => (value);
-/******/ 		__webpack_require__.d(ns, def);
-/******/ 		return ns;
-/******/ 	};
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/define property getters */
-/******/ (() => {
-/******/ 	// define getter functions for harmony exports
-/******/ 	__webpack_require__.d = (exports, definition) => {
-/******/ 		for(var key in definition) {
-/******/ 			if(__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {
-/******/ 				Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 	/* webpack/runtime/create fake namespace object */
+/******/ 	(() => {
+/******/ 		var getProto = Object.getPrototypeOf ? (obj) => (Object.getPrototypeOf(obj)) : (obj) => (obj.__proto__);
+/******/ 		var leafPrototypes;
+/******/ 		// create a fake namespace object
+/******/ 		// mode & 1: value is a module id, require it
+/******/ 		// mode & 2: merge all properties of value into the ns
+/******/ 		// mode & 4: return value when already ns object
+/******/ 		// mode & 16: return value when it's Promise-like
+/******/ 		// mode & 8|1: behave like require
+/******/ 		__webpack_require__.t = function(value, mode) {
+/******/ 			if(mode & 1) value = this(value);
+/******/ 			if(mode & 8) return value;
+/******/ 			if(typeof value === 'object' && value) {
+/******/ 				if((mode & 4) && value.__esModule) return value;
+/******/ 				if((mode & 16) && typeof value.then === 'function') return value;
 /******/ 			}
-/******/ 		}
-/******/ 	};
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/global */
-/******/ (() => {
-/******/ 	__webpack_require__.g = (function() {
-/******/ 		if (typeof globalThis === 'object') return globalThis;
-/******/ 		try {
-/******/ 			return this || new Function('return this')();
-/******/ 		} catch (e) {
-/******/ 			if (typeof window === 'object') return window;
-/******/ 		}
+/******/ 			var ns = Object.create(null);
+/******/ 			__webpack_require__.r(ns);
+/******/ 			var def = {};
+/******/ 			leafPrototypes = leafPrototypes || [null, getProto({}), getProto([]), getProto(getProto)];
+/******/ 			for(var current = mode & 2 && value; typeof current == 'object' && !~leafPrototypes.indexOf(current); current = getProto(current)) {
+/******/ 				Object.getOwnPropertyNames(current).forEach((key) => (def[key] = () => (value[key])));
+/******/ 			}
+/******/ 			def['default'] = () => (value);
+/******/ 			__webpack_require__.d(ns, def);
+/******/ 			return ns;
+/******/ 		};
 /******/ 	})();
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/hasOwnProperty shorthand */
-/******/ (() => {
-/******/ 	__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/make namespace object */
-/******/ (() => {
-/******/ 	// define __esModule on exports
-/******/ 	__webpack_require__.r = (exports) => {
-/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 		}
-/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 	};
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/publicPath */
-/******/ (() => {
-/******/ 	var scriptUrl;
-/******/ 	if (__webpack_require__.g.importScripts) scriptUrl = __webpack_require__.g.location + "";
-/******/ 	var document = __webpack_require__.g.document;
-/******/ 	if (!scriptUrl && document) {
-/******/ 		if (document.currentScript && document.currentScript.tagName.toUpperCase() === 'SCRIPT')
-/******/ 			scriptUrl = document.currentScript.src;
-/******/ 		if (!scriptUrl) {
-/******/ 			var scripts = document.getElementsByTagName("script");
-/******/ 			if(scripts.length) {
-/******/ 				var i = scripts.length - 1;
-/******/ 				while (i > -1 && (!scriptUrl || !/^http(s?):/.test(scriptUrl))) scriptUrl = scripts[i--].src;
+/******/ 	
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__webpack_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/global */
+/******/ 	(() => {
+/******/ 		__webpack_require__.g = (function() {
+/******/ 			if (typeof globalThis === 'object') return globalThis;
+/******/ 			try {
+/******/ 				return this || new Function('return this')();
+/******/ 			} catch (e) {
+/******/ 				if (typeof window === 'object') return window;
+/******/ 			}
+/******/ 		})();
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__webpack_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/publicPath */
+/******/ 	(() => {
+/******/ 		var scriptUrl;
+/******/ 		if (__webpack_require__.g.importScripts) scriptUrl = __webpack_require__.g.location + "";
+/******/ 		var document = __webpack_require__.g.document;
+/******/ 		if (!scriptUrl && document) {
+/******/ 			if (document.currentScript && document.currentScript.tagName.toUpperCase() === 'SCRIPT')
+/******/ 				scriptUrl = document.currentScript.src;
+/******/ 			if (!scriptUrl) {
+/******/ 				var scripts = document.getElementsByTagName("script");
+/******/ 				if(scripts.length) {
+/******/ 					var i = scripts.length - 1;
+/******/ 					while (i > -1 && (!scriptUrl || !/^http(s?):/.test(scriptUrl))) scriptUrl = scripts[i--].src;
+/******/ 				}
 /******/ 			}
 /******/ 		}
-/******/ 	}
-/******/ 	// When supporting browsers where an automatic publicPath is not supported you must specify an output.publicPath manually via configuration
-/******/ 	// or pass an empty string ("") and set the __webpack_public_path__ variable from your code to use your own logic.
-/******/ 	if (!scriptUrl) throw new Error("Automatic publicPath is not supported in this browser");
-/******/ 	scriptUrl = scriptUrl.replace(/#.*$/, "").replace(/\?.*$/, "").replace(/\/[^\/]+$/, "/");
-/******/ 	__webpack_require__.p = scriptUrl;
-/******/ })();
-/******/ 
-/******/ /* webpack/runtime/jsonp chunk loading */
-/******/ (() => {
-/******/ 	__webpack_require__.b = document.baseURI || self.location.href;
+/******/ 		// When supporting browsers where an automatic publicPath is not supported you must specify an output.publicPath manually via configuration
+/******/ 		// or pass an empty string ("") and set the __webpack_public_path__ variable from your code to use your own logic.
+/******/ 		if (!scriptUrl) throw new Error("Automatic publicPath is not supported in this browser");
+/******/ 		scriptUrl = scriptUrl.replace(/#.*$/, "").replace(/\?.*$/, "").replace(/\/[^\/]+$/, "/");
+/******/ 		__webpack_require__.p = scriptUrl;
+/******/ 	})();
 /******/ 	
-/******/ 	// object to store loaded and loading chunks
-/******/ 	// undefined = chunk not loaded, null = chunk preloaded/prefetched
-/******/ 	// [resolve, reject, Promise] = chunk loading, 0 = chunk loaded
-/******/ 	var installedChunks = {
-/******/ 		882: 0,
-/******/ 		887: 0
-/******/ 	};
+/******/ 	/* webpack/runtime/importScripts chunk loading */
+/******/ 	(() => {
+/******/ 		__webpack_require__.b = self.location + "";
+/******/ 		
+/******/ 		// object to store loaded chunks
+/******/ 		// "1" means "already loaded"
+/******/ 		var installedChunks = {
+/******/ 			882: 1,
+/******/ 			887: 1
+/******/ 		};
+/******/ 		
+/******/ 		// no chunk install function needed
+/******/ 		// no chunk loading
+/******/ 		
+/******/ 		// no HMR
+/******/ 		
+/******/ 		// no HMR manifest
+/******/ 	})();
 /******/ 	
-/******/ 	// no chunk on demand loading
-/******/ 	
-/******/ 	// no prefetching
-/******/ 	
-/******/ 	// no preloaded
-/******/ 	
-/******/ 	// no HMR
-/******/ 	
-/******/ 	// no HMR manifest
-/******/ 	
-/******/ 	// no on chunks loaded
-/******/ 	
-/******/ 	// no jsonp function
-/******/ })();
-/******/ 
 /************************************************************************/
 // This entry needs to be wrapped in an IIFE because it needs to be in strict mode.
 (() => {
@@ -31779,7 +31719,7 @@ self.onmessage = async event => {
 
 
 // Initialize required globals as soon as module loads
-globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = chrome.runtime.getURL('wasm/');
+globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = 'wasm/';
 globalThis.wasmEvalSupported = true;
 
 // Keep track of connection status
@@ -32015,9 +31955,17 @@ async function initASR() {
   if (worker) return; // Don't initialize if already running
 
   try {
+    // Set the correct base URL for loading WASM files
+    const wasmPath = chrome.runtime.getURL('wasm/');
     worker = new Worker(chrome.runtime.getURL('asr-worker.js'), {
       type: 'module',
       name: 'asr-worker'
+    });
+
+    // Send WASM path to worker
+    worker.postMessage({
+      type: 'init',
+      wasmPath
     });
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -32254,3 +32202,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 })();
 
+/******/ })()
+;

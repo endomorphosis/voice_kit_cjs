@@ -6,7 +6,8 @@ const MODELS = {
     ASR: "onnx-community/whisper-tiny.en"
 };
 
-export async function preDownloadModels(progressCallback) {
+// Model caching functions
+export const preDownloadModels = async (progressCallback) => {
     const cache = await caches.open('model-cache-v1');
     
     for (const [type, modelId] of Object.entries(MODELS)) {
@@ -37,10 +38,10 @@ export async function preDownloadModels(progressCallback) {
             console.error(`Error pre-downloading ${type} model:`, error);
         }
     }
-}
+};
 
-// Function to check if models are cached
-export async function areModelsCached() {
+// Model caching functions
+export const areModelsCached = async () => {
     try {
         const cache = await caches.open('model-cache-v1');
         const cached = await Promise.all(
@@ -54,4 +55,4 @@ export async function areModelsCached() {
         console.error('Error checking model cache:', error);
         return false;
     }
-}
+};
