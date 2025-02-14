@@ -3,7 +3,7 @@ import { ACTION_NAME } from "./constants.js";
 import "./asr-worker.js";
 
 // Initialize required globals as soon as module loads
-globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = chrome.runtime.getURL('wasm/');
+globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = 'wasm/';
 globalThis.wasmEvalSupported = true;
 
 // Keep track of connection status
@@ -259,9 +259,18 @@ async function initASR() {
     if (worker) return; // Don't initialize if already running
 
     try {
+        // Set the correct base URL for loading WASM files
+        const wasmPath = chrome.runtime.getURL('wasm/');
+        
         worker = new Worker(chrome.runtime.getURL('asr-worker.js'), { 
             type: 'module',
             name: 'asr-worker'
+        });
+        
+        // Send WASM path to worker
+        worker.postMessage({ 
+            type: 'init', 
+            wasmPath 
         });
         
         return new Promise((resolve, reject) => {
