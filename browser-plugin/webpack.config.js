@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const config = {
   mode: "development",
   devtool: 'source-map',
-  target: ['web'],
+  target: ['web', 'webworker'], // Updated to support both web and webworker
   entry: {
     popup: "./src/popup.js",
     'asr-worker': "./src/asr-worker.js",
@@ -44,6 +44,7 @@ const config = {
       dynamicImport: true
     },
     webassemblyModuleFilename: "[name].wasm",
+    chunkLoading: 'import-scripts', // Added to support web workers
     chunkFormat: 'array-push' // Add explicit chunk format
   },
   module: {

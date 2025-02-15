@@ -151,30 +151,22 @@ module.exports = __webpack_require__.p + "wasm/ort-wasm-simd-threaded.jsep.wasm"
 /******/ 		__webpack_require__.p = "";
 /******/ 	})();
 /******/ 	
-/******/ 	/* webpack/runtime/jsonp chunk loading */
+/******/ 	/* webpack/runtime/importScripts chunk loading */
 /******/ 	(() => {
-/******/ 		__webpack_require__.b = document.baseURI || self.location.href;
+/******/ 		__webpack_require__.b = self.location + "";
 /******/ 		
-/******/ 		// object to store loaded and loading chunks
-/******/ 		// undefined = chunk not loaded, null = chunk preloaded/prefetched
-/******/ 		// [resolve, reject, Promise] = chunk loading, 0 = chunk loaded
+/******/ 		// object to store loaded chunks
+/******/ 		// "1" means "already loaded"
 /******/ 		var installedChunks = {
-/******/ 			471: 0
+/******/ 			471: 1
 /******/ 		};
 /******/ 		
-/******/ 		// no chunk on demand loading
-/******/ 		
-/******/ 		// no prefetching
-/******/ 		
-/******/ 		// no preloaded
+/******/ 		// no chunk install function needed
+/******/ 		// no chunk loading
 /******/ 		
 /******/ 		// no HMR
 /******/ 		
 /******/ 		// no HMR manifest
-/******/ 		
-/******/ 		// no on chunks loaded
-/******/ 		
-/******/ 		// no jsonp function
 /******/ 	})();
 /******/ 	
 /************************************************************************/
