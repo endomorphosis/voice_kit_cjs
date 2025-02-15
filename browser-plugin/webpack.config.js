@@ -9,8 +9,8 @@ const __dirname = path.dirname(__filename);
 /** @type {import('webpack').Configuration} */
 const config = {
   mode: "development",
-  devtool: false,
-  target: 'web',
+  devtool: 'source-map',
+  target: ['web'],
   entry: {
     popup: "./src/popup.js",
     'asr-worker': "./src/asr-worker.js",
@@ -18,7 +18,8 @@ const config = {
     content: "./src/content.js"
   },
   experiments: {
-    outputModule: true
+    asyncWebAssembly: true,
+    syncWebAssembly: true
   },
   resolve: {
     alias: {
@@ -38,18 +39,14 @@ const config = {
     filename: "[name].js",
     clean: true,
     publicPath: '',
-    module: true,
+    globalObject: 'self',
     environment: {
-      module: true,
       dynamicImport: true
-    }
+    },
+    webassemblyModuleFilename: "[name].wasm",
+    chunkFormat: 'array-push' // Add explicit chunk format
   },
   module: {
-    parser: {
-      javascript: {
-        importMeta: false
-      }
-    },
     rules: [
       {
         test: /\.js$/,
@@ -62,10 +59,17 @@ const config = {
                 targets: {
                   chrome: "113"
                 },
-                modules: false
+                modules: 'auto'
               }]
             ]
           }
+        }
+      },
+      {
+        test: /\.wasm$/,
+        type: "asset/resource",
+        generator: {
+          filename: "wasm/[name][ext]"
         }
       }
     ]
@@ -76,7 +80,7 @@ const config = {
       filename: "popup.html",
       chunks: ['popup'],
       inject: 'head',
-      scriptLoading: 'module',
+      scriptLoading: 'defer',
       minify: false
     }),
     new CopyPlugin({
@@ -88,7 +92,7 @@ const config = {
             if (path.endsWith('manifest.json')) {
               const manifest = JSON.parse(content);
               manifest.content_security_policy = {
-                extension_pages: "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; child-src 'self'"
+                extension_pages: "script-src 'self'; worker-src 'self'"
               };
               return JSON.stringify(manifest, null, 2);
             }
@@ -100,12 +104,7 @@ const config = {
           to: "popup.css",
         },
         {
-          from: "node_modules/onnxruntime-web/dist/*.wasm",
-          to: "wasm/[name][ext]",
-          noErrorOnMissing: true
-        },
-        {
-          from: "node_modules/@huggingface/transformers/dist/*.wasm",
+          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/*.wasm",
           to: "wasm/[name][ext]",
           noErrorOnMissing: true
         }
