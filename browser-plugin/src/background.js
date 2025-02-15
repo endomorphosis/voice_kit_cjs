@@ -9,14 +9,15 @@ import {
 import { preDownloadModels, areModelsCached } from "./model-cache.js";
 import { CONTEXT_MENU_ITEM_ID } from "./constants.js";
 
+// Initialize WASM path before any other code
+const scope = self.registration ? new URL(self.registration.scope).pathname : '/';
+self.__TRANSFORMER_WORKER_WASM_PATH__ = new URL('./wasm/', scope).toString();
+
 // Set up the stopping criteria for interrupting generation if needed
 const stopping_criteria = new InterruptableStoppingCriteria();
 
 let modelStatus = 'uninitialized';
 let loadingProgress = 0;
-
-// Initialize WASM path immediately
-self.__TRANSFORMER_WORKER_WASM_PATH__ = '/wasm/';
 
 // Function to broadcast status to all popup windows
 function broadcastStatus(status, data = null) {

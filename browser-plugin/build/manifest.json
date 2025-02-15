@@ -17,12 +17,8 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ]
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
     }
   ],
   "minimum_chrome_version": "113",
@@ -45,17 +41,13 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "wasm/*",
-        "*.wasm",
-        "*.js",
-        "asr-worker.js"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  "web_accessible_resources": [{
+    "resources": [
+      "wasm/*",
+      "*.wasm",
+      "*.js",
+      "asr-worker.js"
+    ],
+    "matches": ["<all_urls>"]
+  }]
 }

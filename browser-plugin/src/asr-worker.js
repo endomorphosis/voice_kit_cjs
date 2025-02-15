@@ -1,6 +1,6 @@
-// ASR worker for speech recognition
-import "@huggingface/transformers";
-import { pipeline } from "@huggingface/transformers";
+// ASR Worker for handling speech recognition
+// Import transformers as ES module
+import { pipeline } from '@huggingface/transformers';
 
 const SAMPLE_RATE = 16000;
 let transcriber;
@@ -52,20 +52,7 @@ async function initializeASR() {
     try {
         console.log('Initializing WASM backend...');
         
-        transcriber = await pipeline(
-            "automatic-speech-recognition",
-            "onnx-community/whisper-tiny.en",
-            {
-                device: "wasm",
-                quantized: true,
-                progress_callback: (data) => {
-                    console.log('Loading progress:', data);
-                    self.postMessage({ type: 'loading', data });
-                },
-                wasmPaths: self.__TRANSFORMER_WORKER_WASM_PATH__,
-                local_files_only: false
-            }
-        );
+        transcriber = await loadModel();
         
         console.log('Successfully initialized ASR on WASM');
 
@@ -87,5 +74,26 @@ async function initializeASR() {
             }
         });
         throw error;
+    }
+}
+
+async function loadModel() {
+    try {
+        // Attempt to load the model using WebGPU
+        const model = await pipeline('automatic-speech-recognition', {
+            model: 'openai/whisper-tiny.en',
+            device: 'gpu'
+        });
+        console.log('Model loaded using WebGPU');
+        return model;
+    } catch (error) {
+        console.error('Failed to load model using WebGPU:', error);
+        // Fallback to CPU if WebGPU fails
+        const model = await pipeline('automatic-speech-recognition', {
+            model: 'openai/whisper-tiny.en',
+            device: 'cpu'
+        });
+        console.log('Model loaded using CPU');
+        return model;
     }
 }

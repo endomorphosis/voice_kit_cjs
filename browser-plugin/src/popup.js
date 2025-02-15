@@ -1,9 +1,9 @@
 // popup.js - handles interaction with the extension's popup UI
 import { ACTION_NAME } from "./constants.js";
-import "./asr-worker.js";
 
 // Initialize required globals as soon as module loads
-globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = 'wasm/';
+// Remove importScripts usage since it's not available in main context
+globalThis.__TRANSFORMER_WORKER_WASM_PATH__ = chrome.runtime.getURL('wasm/');
 globalThis.wasmEvalSupported = true;
 
 // Keep track of connection status
@@ -262,7 +262,7 @@ async function initASR() {
         // Set the correct base URL for loading WASM files
         const wasmPath = chrome.runtime.getURL('wasm/');
         
-        worker = new Worker(chrome.runtime.getURL('asr-worker.js'), { 
+        worker = new Worker('asr-worker.js', { 
             type: 'module',
             name: 'asr-worker'
         });

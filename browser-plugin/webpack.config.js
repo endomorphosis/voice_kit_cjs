@@ -10,16 +10,23 @@ const __dirname = path.dirname(__filename);
 const config = {
   mode: "development",
   devtool: 'source-map',
-  target: ['web', 'webworker'], // Updated to support both web and webworker
   entry: {
     popup: "./src/popup.js",
-    'asr-worker': "./src/asr-worker.js",
+    'asr-worker': { 
+      import: "./src/asr-worker.js",
+      filename: "asr-worker.js",
+      library: {
+        type: "module"
+      }
+    },
     background: "./src/background.js",
     content: "./src/content.js"
   },
+  target: ['web', 'es2020'],
   experiments: {
     asyncWebAssembly: true,
-    syncWebAssembly: true
+    outputModule: true,
+    topLevelAwait: true
   },
   resolve: {
     alias: {
@@ -36,16 +43,16 @@ const config = {
   },
   output: {
     path: path.resolve(__dirname, "build"),
-    filename: "[name].js",
     clean: true,
     publicPath: '',
-    globalObject: 'self',
+    filename: '[name].js',
     environment: {
-      dynamicImport: true
+      dynamicImport: true,
+      module: true
     },
-    webassemblyModuleFilename: "[name].wasm",
-    chunkLoading: 'import-scripts', // Added to support web workers
-    chunkFormat: 'array-push' // Add explicit chunk format
+    webassemblyModuleFilename: "wasm/[hash].wasm",
+    wasmLoading: 'fetch',
+    chunkFormat: 'module'
   },
   module: {
     rules: [
@@ -60,8 +67,11 @@ const config = {
                 targets: {
                   chrome: "113"
                 },
-                modules: 'auto'
+                modules: false
               }]
+            ],
+            plugins: [
+              "@babel/plugin-syntax-top-level-await"
             ]
           }
         }
@@ -70,7 +80,7 @@ const config = {
         test: /\.wasm$/,
         type: "asset/resource",
         generator: {
-          filename: "wasm/[name][ext]"
+          filename: "wasm/[hash][ext]"
         }
       }
     ]
@@ -79,43 +89,22 @@ const config = {
     new HtmlWebpackPlugin({
       template: "./src/popup.html",
       filename: "popup.html",
-      chunks: ['popup'],
-      inject: 'head',
-      scriptLoading: 'defer',
-      minify: false
+      chunks: ['popup']
     }),
     new CopyPlugin({
       patterns: [
-        {
-          from: "public",
-          to: ".",
-          transform(content, path) {
-            if (path.endsWith('manifest.json')) {
-              const manifest = JSON.parse(content);
-              manifest.content_security_policy = {
-                extension_pages: "script-src 'self'; worker-src 'self'"
-              };
-              return JSON.stringify(manifest, null, 2);
-            }
-            return content;
-          }
-        },
-        {
-          from: "src/popup.css",
-          to: "popup.css",
-        },
-        {
+        { from: "public" },
+        { from: "src/popup.css", to: "popup.css" },
+        { 
           from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/*.wasm",
-          to: "wasm/[name][ext]",
-          noErrorOnMissing: true
+          to: "wasm/[name][ext]"
         }
-      ],
+      ]
     })
   ],
   optimization: {
     minimize: false,
-    splitChunks: false,
-    runtimeChunk: false
+    splitChunks: false
   }
 };
 
