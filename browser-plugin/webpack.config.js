@@ -98,6 +98,14 @@ const config = {
         { 
           from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/*.wasm",
           to: "wasm/[name][ext]"
+        },
+        { from: './src/manifest.json', to: 'manifest.json' },
+        { from: './public/icons', to: 'icons' },
+        { from: './public/mic-icon.svg', to: 'mic-icon.svg' },
+        { 
+          from: '../node_modules/@xenova/transformers/dist/wasm',
+          to: 'wasm',
+          noErrorOnMissing: true
         }
       ]
     })

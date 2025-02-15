@@ -1,6 +1,6 @@
 // ASR Worker for handling speech recognition
 // Import transformers as ES module
-import { pipeline } from '@huggingface/transformers';
+import { pipeline } from '@xenova/transformers';
 
 const SAMPLE_RATE = 16000;
 let transcriber;
@@ -10,15 +10,9 @@ self.onmessage = async (event) => {
     const { type, wasmPath, buffer } = event.data;
     
     if (type === 'init') {
-        // Set WASM path from initialization message
-        self.__TRANSFORMER_WORKER_WASM_PATH__ = wasmPath;
-        console.log('ASR Worker initialized with WASM path:', wasmPath);
-        
-        try {
-            await initializeASR();
-        } catch (error) {
-            console.error('ASR initialization failed:', error);
-        }
+        // Set the base URL for WASM files
+        self.wasmPath = new URL(wasmPath, self.location.href).href;
+        await initializeASR();
         return;
     }
 
@@ -50,18 +44,10 @@ self.onmessage = async (event) => {
 
 async function initializeASR() {
     try {
-        console.log('Initializing WASM backend...');
-        
+        console.log('Initializing ASR model...');
         transcriber = await loadModel();
-        
-        console.log('Successfully initialized ASR on WASM');
-
-        // Test the pipeline
-        console.log('Testing ASR pipeline...');
-        const testResult = await transcriber(new Float32Array(SAMPLE_RATE));
-        console.log('ASR test successful:', testResult);
+        console.log('Successfully initialized ASR');
         self.postMessage({ type: "ready" });
-
     } catch (error) {
         console.error('Failed to initialize ASR model:', error);
         self.postMessage({ 
@@ -79,21 +65,23 @@ async function initializeASR() {
 
 async function loadModel() {
     try {
-        // Attempt to load the model using WebGPU
-        const model = await pipeline('automatic-speech-recognition', {
-            model: 'openai/whisper-tiny.en',
-            device: 'gpu'
+        // Set WASM path before loading model
+        pipeline.setConfig({
+            wasmPath: self.wasmPath
         });
-        console.log('Model loaded using WebGPU');
+
+        // Load the model with WebGPU
+        const model = await pipeline('automatic-speech-recognition', 'openai/whisper-tiny.en', {
+            quantized: false,
+            progress_callback: (x) => {
+                self.postMessage({ type: 'loading', data: x });
+            }
+        });
+        
+        console.log('Model loaded successfully');
         return model;
     } catch (error) {
-        console.error('Failed to load model using WebGPU:', error);
-        // Fallback to CPU if WebGPU fails
-        const model = await pipeline('automatic-speech-recognition', {
-            model: 'openai/whisper-tiny.en',
-            device: 'cpu'
-        });
-        console.log('Model loaded using CPU');
-        return model;
+        console.error('Failed to load model:', error);
+        throw error;
     }
 }

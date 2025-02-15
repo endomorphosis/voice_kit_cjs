@@ -1,31 +1,30 @@
 {
   "manifest_version": 3,
-  "name": "DeepSeek Chat",
-  "description": "Chat with DeepSeek AI model using WebGPU acceleration",
+  "name": "WebGPU Transformers.js Extension",
+  "description": "WebGPU-powered ASR using Transformers.js",
   "version": "1.0",
   "permissions": [
-    "contextMenus",
-    "scripting",
     "storage"
   ],
-  "host_permissions": [
-    "*://*/*"
-  ],
+  "host_permissions": [],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ],
   "minimum_chrome_version": "113",
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
@@ -33,21 +32,22 @@
     "default_popup": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; worker-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self'"
   },
   "icons": {
     "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "web_accessible_resources": [{
-    "resources": [
-      "wasm/*",
-      "*.wasm",
-      "*.js",
-      "asr-worker.js"
-    ],
-    "matches": ["<all_urls>"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "wasm/*",
+        "asr-worker.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

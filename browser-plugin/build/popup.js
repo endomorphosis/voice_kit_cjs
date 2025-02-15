@@ -239,9 +239,10 @@ async function initASR() {
   if (worker) return; // Don't initialize if already running
 
   try {
-    // Set the correct base URL for loading WASM files
+    // Set the correct base URL for loading WASM files 
+    const wasmBase = chrome.runtime.getURL('');
     const wasmPath = chrome.runtime.getURL('wasm/');
-    worker = new Worker('asr-worker.js', {
+    worker = new Worker(new URL('asr-worker.js', wasmBase), {
       type: 'module',
       name: 'asr-worker'
     });

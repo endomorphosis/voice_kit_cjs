@@ -259,20 +259,21 @@ async function initASR() {
     if (worker) return; // Don't initialize if already running
 
     try {
-        // Set the correct base URL for loading WASM files
+        // Set the correct base URL for loading WASM files 
+        const wasmBase = chrome.runtime.getURL('');
         const wasmPath = chrome.runtime.getURL('wasm/');
         
-        worker = new Worker('asr-worker.js', { 
+        worker = new Worker(new URL('asr-worker.js', wasmBase), {
             type: 'module',
             name: 'asr-worker'
         });
-        
+
         // Send WASM path to worker
-        worker.postMessage({ 
-            type: 'init', 
-            wasmPath 
+        worker.postMessage({
+            type: 'init',
+            wasmPath
         });
-        
+
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 cleanupWorker();
@@ -309,6 +310,7 @@ async function initASR() {
                 reject(error);
             };
         });
+
     } catch (error) {
         console.error('Error initializing ASR:', error);
         addLogEntry('error', 'Failed to initialize speech recognition: ' + error.message);
