@@ -32023,31 +32023,28 @@ async function cacheIcon() {
 }
 async function requestMicrophonePermissions() {
   try {
-    // Check if permissions are already granted
-    const permissions = await navigator.permissions.query({
-      name: 'microphone'
+    // Request audioCapture permission using Chrome extension API
+    const granted = await chrome.permissions.request({
+      permissions: ['audioCapture']
     });
-    if (permissions.state === 'granted') {
-      return true;
-    } else if (permissions.state === 'prompt') {
-      // Show instructions to user before requesting permissions
-      addLogEntry('info', 'Please allow microphone access in the browser prompt');
-      // Request permissions explicitly
+    if (granted) {
+      // After permission is granted, test the microphone
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true
       });
       stream.getTracks().forEach(track => track.stop()); // Clean up test stream
       return true;
-    } else if (permissions.state === 'denied') {
-      addLogEntry('error', 'Microphone access is blocked. Please allow access in your browser settings.');
-      // Show instructions for enabling permissions
+    } else {
+      addLogEntry('error', 'Microphone access was denied');
       const instructions = document.createElement('div');
       instructions.className = 'log-entry info';
       instructions.innerHTML = `
                 To enable microphone access:
                 <ol>
-                    <li>Click the camera/microphone icon in your browser's address bar</li>
-                    <li>Select "Allow" for microphone access</li>
+                    <li>Click the extension icon</li>
+                    <li>Click "Manage" (3-dot menu)</li>
+                    <li>Click "Extension options"</li>
+                    <li>Enable microphone access</li>
                     <li>Refresh this page</li>
                 </ol>
             `;
@@ -32056,6 +32053,7 @@ async function requestMicrophonePermissions() {
     }
   } catch (error) {
     console.error('Error checking permissions:', error);
+    addLogEntry('error', 'Failed to request microphone access: ' + error.message);
     return false;
   }
 }

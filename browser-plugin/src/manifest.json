@@ -6,7 +6,11 @@
   "permissions": [
     "contextMenus",
     "scripting",
-    "storage"
+    "storage",
+    "audioCapture"
+  ],
+  "optional_permissions": [
+    "audioCapture"
   ],
   "host_permissions": [
     "*://*/*"
