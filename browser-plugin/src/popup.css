@@ -21,8 +21,9 @@ h2 {
 }
 
 .container {
-  width: 400px;
+  width: 300px;
   padding: 16px;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 /* Add loading spinner styles */
@@ -290,4 +291,89 @@ button:disabled {
   font-size: 12px;
   color: #666;
   margin-top: 16px;
+}
+
+.record-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.record-button:hover {
+  background: #1557b0;
+}
+
+.status {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #666;
+}
+
+.transcription {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 14px;
+  min-height: 60px;
+  white-space: pre-wrap;
+}
+
+.record-section {
+  margin-bottom: 16px;
+}
+
+.chat-section {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 40px;
+}
+
+.send-button {
+  padding: 8px 16px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.send-button:hover {
+  background: #1557b0;
+}
+
+.chat-messages {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.log-messages {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #666;
+}
+
+.log-entry {
+  margin: 4px 0;
+}
+
+.log-entry.error {
+  color: #dc3545;
 }

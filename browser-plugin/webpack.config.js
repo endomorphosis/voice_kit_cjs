@@ -95,17 +95,20 @@ const config = {
       patterns: [
         { from: "public" },
         { from: "src/popup.css", to: "popup.css" },
-        { 
-          from: "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/*.wasm",
-          to: "wasm/[name][ext]"
-        },
-        { from: './src/manifest.json', to: 'manifest.json' },
+        { from: "./src/manifest.json", to: 'manifest.json' },
         { from: './public/icons', to: 'icons' },
-        { from: './public/mic-icon.svg', to: 'mic-icon.svg' },
+        { from: './src/mic-icon.svg', to: 'mic-icon.svg' },
         { 
-          from: '../node_modules/@xenova/transformers/dist/wasm',
-          to: 'wasm',
+          from: 'node_modules/@xenova/transformers/dist/wasm/',
+          to: 'wasm/',
           noErrorOnMissing: true
+        },
+        { 
+          from: 'node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/',
+          to: 'wasm/',
+          globOptions: {
+            ignore: ['**/*.ts', '**/*.map', '**/*.js']
+          }
         }
       ]
     })

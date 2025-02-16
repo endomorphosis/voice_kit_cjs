@@ -11,29 +11,39 @@
       <h1>DeepSeek Chat</h1>
       <div id="model-status">
         <div id="status-indicator"></div>
-        <div id="status">Initializing...</div>
+        <div id="status" class="status">Initializing...</div>
         <div id="loading-progress"></div>
       </div>
 
+      <div id="transcriptionDiv" class="transcription"></div>
+
       <div id="chat-container">
-        <div id="chat-messages"></div>
+        <div id="chat-messages" class="chat-messages"></div>
         <div class="input-area">
-          <textarea id="chat-input" placeholder="Type your message here..."></textarea>
+          <textarea id="chat-input" class="chat-input" placeholder="Type your message here..."></textarea>
           <button id="mic-button" title="Start recording" disabled>
             <img src="mic-icon.svg" alt="Microphone" width="24" height="24" />
           </button>
-          <button id="send-button" disabled>Send</button>
+          <button id="send-button" class="send-button" disabled>Send</button>
         </div>
       </div>
 
       <div id="console-output">
         <h3>Console Output</h3>
-        <div id="log-messages"></div>
+        <div id="log-messages" class="log-messages"></div>
       </div>
 
       <div class="info">
         Tip: Select text on any webpage and right-click to generate text.
       </div>
+
+      <div class="record-section">
+        <button id="recordButton" class="record-button">
+          <img src="mic-icon.svg" alt="Microphone" width="24" height="24" />
+          <span>Record</span>
+        </button>
+      </div>
     </div>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>

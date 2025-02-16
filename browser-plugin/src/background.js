@@ -1,32 +1,55 @@
 // background.js - Handles requests from the UI, runs the model, then sends back a response
-import "@huggingface/transformers";
-import {
-  AutoTokenizer,
-  AutoModelForCausalLM,
-  TextStreamer,
-  InterruptableStoppingCriteria
-} from "@huggingface/transformers";
-import { preDownloadModels, areModelsCached } from "./model-cache.js";
-import { CONTEXT_MENU_ITEM_ID } from "./constants.js";
+import { pipeline } from '@xenova/transformers';
+import { preDownloadModels, areModelsCached } from './model-cache.js';
+import { CONTEXT_MENU_ITEM_ID } from './constants.js';
 
-// Initialize WASM path before any other code
-const scope = self.registration ? new URL(self.registration.scope).pathname : '/';
-self.__TRANSFORMER_WORKER_WASM_PATH__ = new URL('./wasm/', scope).toString();
+// Initialize model paths and WASM configuration
+const wasmPath = self.registration.scope + 'wasm/';
+const modelPath = self.registration.scope + 'models/';
+
+let asrWorker = null;
+let modelStatus = 'uninitialized';
+let loadingProgress = 0;
+let whisperPipeline = null;
+
+// Initialize ASR pipeline with proper configuration
+async function initASR() {
+  try {
+    if (whisperPipeline) return whisperPipeline;
+
+    whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
+      revision: 'main',
+      quantized: false,
+      config: {
+        wasmPath,
+        type: 'wasm'
+      }
+    });
+
+    modelStatus = 'ready';
+    self.postMessage({ type: 'ready' });
+    return whisperPipeline;
+  } catch (error) {
+    console.error('Failed to initialize ASR:', error);
+    modelStatus = 'error';
+    self.postMessage({ type: 'error', error: error.message });
+    throw error;
+  }
+}
 
 // Set up the stopping criteria for interrupting generation if needed
 const stopping_criteria = new InterruptableStoppingCriteria();
 
-let modelStatus = 'uninitialized';
-let loadingProgress = 0;
-
 // Function to broadcast status to all popup windows
 function broadcastStatus(status, data = null) {
-  chrome.runtime.sendMessage({
-    status,
-    data,
-    progress: loadingProgress
-  }).catch(() => {
-    // Ignore errors when no popups are open
+  self.clients.matchAll().then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        status,
+        data,
+        progress: loadingProgress
+      });
+    });
   });
 }
 
@@ -140,8 +163,47 @@ class TextGenerationPipeline {
 }
 
 // Add cleanup on extension unload
-chrome.runtime.onSuspend.addListener(() => {
-  TextGenerationPipeline.cleanupInstance();
+self.addEventListener('message', async (event) => {
+  const { type, data } = event.data;
+
+  if (type === 'check_status') {
+    event.ports[0].postMessage({
+      status: modelStatus,
+      progress: loadingProgress
+    });
+  }
+
+  if (type === 'transcribe' && data?.audio) {
+    try {
+      const pipeline = await initASR();
+      if (!pipeline) {
+        throw new Error('ASR pipeline not initialized');
+      }
+
+      // Convert input to Float32Array if needed
+      let audioArray;
+      if (data.audio instanceof Float32Array) {
+        audioArray = data.audio;
+      } else if (Array.isArray(data.audio)) {
+        if (!data.audio.every(x => typeof x === 'number')) {
+          throw new Error('Invalid audio data - must contain only numbers');
+        }
+        audioArray = Float32Array.from(data.audio);
+      } else {
+        throw new Error('Invalid audio data format');
+      }
+
+      const result = await pipeline(audioArray);
+      if (typeof result?.text === 'string') {
+        self.postMessage({ type: 'transcription', text: result.text });
+      } else {
+        throw new Error('Invalid transcription result');
+      }
+    } catch (error) {
+      console.error('ASR Error:', error);
+      self.postMessage({ type: 'error', error: error.message });
+    }
+  }
 });
 
 // Create generate function with static configuration
@@ -207,62 +269,62 @@ const generate = async (text) => {
   }
 };
 
-// Context menu setup
-chrome.runtime.onInstalled.addListener(async () => {
-  // Create menu item for selected text
-  chrome.contextMenus.create({
-    id: CONTEXT_MENU_ITEM_ID,
-    title: 'Generate from "%s"',
-    contexts: ["selection"]
-  });
-
-  // Create menu item for links
-  chrome.contextMenus.create({
-    id: 'generate-from-link',
-    title: 'Generate summary from link',
-    contexts: ["link"]
-  });
-
-  const modelsAreCached = await areModelsCached();
-  if (!modelsAreCached) {
-    preDownloadModels((progress) => {
-      broadcastStatus('loading', {
-        status: 'downloading',
-        model: progress.model,
-        file: progress.file,
-        progress: progress.progress
-      });
+// Initialize extension with proper error handling
+async function initializeExtension() {
+  try {
+    // Create menu items
+    await chrome.contextMenus.create({
+      id: CONTEXT_MENU_ITEM_ID,
+      title: 'Generate from "%s"',
+      contexts: ["selection"]
     });
+
+    await chrome.contextMenus.create({
+      id: 'generate-from-link',
+      title: 'Generate summary from link',
+      contexts: ["link"]
+    });
+
+    // Pre-download models if needed
+    const modelsAreCached = await areModelsCached();
+    if (!modelsAreCached) {
+      await preDownloadModels((progress) => {
+        broadcastStatus('loading', {
+          status: 'downloading',
+          model: progress.model,
+          file: progress.file,
+          progress: progress.progress
+        });
+      });
+    }
+
+    // Initialize ASR
+    await initASR();
+    
+  } catch (error) {
+    console.error('Error initializing extension:', error);
+    modelStatus = 'error';
+    self.postMessage({ type: 'error', error: error.message });
   }
+}
+
+// Register service worker and initialize
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.skipWaiting(),
+      initializeExtension()
+    ])
+  );
 });
 
-// Message handling
-const messageHandlers = {
-  check_status: () => ({
-    status: modelStatus,
-    progress: loadingProgress
-  }),
-  generate: async (message) => {
-    try {
-      return await generate(message.text);
-    } catch (error) {
-      return { error: error.message };
-    }
-  }
-};
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'check_status') {
-    sendResponse(messageHandlers.check_status());
-    return true;
-  }
-
-  if (message.action === "generate") {
-    messageHandlers.generate(message).then(sendResponse);
-    return true;
-  }
-
-  return false;
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      initializeExtension()
+    ])
+  );
 });
 
 // Context menu handler
@@ -302,11 +364,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // Keep service worker alive and handle cleanup
-chrome.runtime.onStartup.addListener(() => {
-  modelStatus = 'uninitialized';
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.skipWaiting(),
+      initASR()
+    ])
+  );
 });
 
-chrome.runtime.onSuspend.addListener(() => {
-  TextGenerationPipeline.cleanupInstance();
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      initASR()
+    ])
+  );
 });
 
