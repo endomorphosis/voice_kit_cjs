@@ -24833,25 +24833,102 @@ async function loadItems(mapping, model, pretrainedOptions) {
 
 
 
-;// ./src/asr-worker.js
-// ASR Worker for handling speech recognition
+;// ./src/feature-extractor.js
+// Feature extractor configuration and setup
 
-let whisperPipeline = null;
-let isInitialized = false;
-async function initASR(wasmPath) {
-  if (isInitialized) return;
-  try {
-    // Ensure wasmPath is a string
-    const wasmPathStr = typeof wasmPath === 'string' ? wasmPath : '';
-    whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
-      revision: 'main',
-      quantized: false,
-      config: {
-        wasmPath: wasmPathStr,
-        type: 'wasm'
+const WHISPER_CONFIG = {
+  feature_extractor_type: "WhisperFeatureExtractor",
+  do_normalize: true,
+  max_length_seconds: 30,
+  return_attention_mask: true,
+  sampling_rate: 16000,
+  padding: true,
+  chunk_length: 30,
+  stride_length_s: 5,
+  model_max_length: 448
+};
+class feature_extractor_FeatureExtractor {
+  static instance = null;
+  static async getInstance() {
+    if (!this.instance) {
+      try {
+        // Initialize with specific config to avoid undefined type
+        const processor = await AutoProcessor.from_pretrained('Xenova/whisper-small', {
+          local: true,
+          cache_dir: env.cacheDir,
+          quantized: false,
+          config: WHISPER_CONFIG
+        });
+        if (!processor) {
+          throw new Error('Failed to initialize feature extractor');
+        }
+        this.instance = processor;
+      } catch (error) {
+        console.error('Feature extractor initialization failed:', error);
+        throw error;
       }
+    }
+    return this.instance;
+  }
+  static async processAudio(audioData) {
+    const processor = await this.getInstance();
+    try {
+      // Process audio with explicit configuration
+      const features = await processor(audioData, {
+        sampling_rate: WHISPER_CONFIG.sampling_rate,
+        chunk_length: WHISPER_CONFIG.chunk_length,
+        stride_length_s: WHISPER_CONFIG.stride_length_s
+      });
+      return features;
+    } catch (error) {
+      console.error('Audio processing failed:', error);
+      throw error;
+    }
+  }
+  static async cleanup() {
+    if (this.instance?.destroy) {
+      await this.instance.destroy();
+      this.instance = null;
+    }
+  }
+}
+
+;// ./src/asr-worker.js
+// ASR Worker using ES modules
+
+
+
+// Configure environment
+env.backends.onnx.wasm.numThreads = 1;
+env.useBrowserCache = true;
+env.allowLocalModels = true;
+env.cacheDir = 'models';
+
+// State management
+const state = {
+  whisperPipeline: null,
+  isInitialized: false
+};
+
+// Safe string handling
+const safeString = input => input == null ? '' : String(input);
+
+// Initialize ASR
+async function initASR(wasmPath) {
+  if (state.isInitialized) return;
+  try {
+    // Initialize feature extractor first
+    await feature_extractor_FeatureExtractor.getInstance();
+
+    // Initialize pipeline with feature extractor config
+    state.whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
+      revision: 'main',
+      local: true,
+      cache_dir: env.cacheDir,
+      quantized: false,
+      config: WHISPER_CONFIG
     });
-    isInitialized = true;
+    state.isInitialized = true;
     self.postMessage({
       type: 'ready'
     });
@@ -24859,60 +24936,75 @@ async function initASR(wasmPath) {
     console.error('ASR Init Error:', error);
     self.postMessage({
       type: 'error',
-      error: error.message
+      error: safeString(error.message || 'Failed to initialize ASR')
     });
   }
 }
-self.onmessage = async event => {
+
+// Handle messages
+self.onmessage = async ({
+  data
+}) => {
+  if (!data || typeof data !== 'object') return;
   const {
     type,
-    data,
+    audio,
     wasmPath
-  } = event.data;
-  if (type === 'init') {
-    await initASR(wasmPath);
-  } else if (type === 'transcribe') {
-    try {
-      if (!whisperPipeline) {
-        throw new Error('ASR pipeline not initialized');
-      }
-
-      // Validate audio data
-      if (!data?.audio) {
-        throw new Error('No audio data provided');
-      }
-
-      // Convert input to Float32Array if needed
-      let audioArray;
-      if (data.audio instanceof Float32Array) {
-        audioArray = data.audio;
-      } else if (Array.isArray(data.audio)) {
-        // Ensure all elements are numbers
-        if (!data.audio.every(x => typeof x === 'number')) {
-          throw new Error('Invalid audio data - must contain only numbers');
+  } = data;
+  try {
+    switch (type) {
+      case 'init':
+        await initASR(wasmPath);
+        break;
+      case 'transcribe':
+        if (!state.whisperPipeline) {
+          throw new Error('ASR not initialized');
         }
-        audioArray = Float32Array.from(data.audio);
-      } else {
-        throw new Error('Invalid audio data format - must be Float32Array or array of numbers');
-      }
-      const result = await whisperPipeline(audioArray);
+        if (!audio) {
+          throw new Error('No audio data provided');
+        }
 
-      // Validate result has text property
-      if (!result || typeof result.text !== 'string') {
-        throw new Error('Invalid transcription result');
-      }
-      self.postMessage({
-        type: 'result',
-        text: result.text
-      });
-    } catch (error) {
-      console.error('ASR Error:', error);
-      self.postMessage({
-        type: 'error',
-        error: error.message
-      });
+        // Convert and validate audio data
+        let audioArray;
+        if (audio instanceof Float32Array) {
+          audioArray = audio;
+        } else if (Array.isArray(audio)) {
+          if (!audio.every(x => typeof x === 'number' && !isNaN(x))) {
+            throw new Error('Invalid audio data - must contain only valid numbers');
+          }
+          audioArray = Float32Array.from(audio);
+        } else {
+          throw new Error('Invalid audio data format');
+        }
+
+        // Process audio using feature extractor
+        const features = await feature_extractor_FeatureExtractor.processAudio(audioArray);
+
+        // Run inference
+        const result = await state.whisperPipeline(features);
+        if (!result?.text) {
+          throw new Error('No transcription result');
+        }
+        self.postMessage({
+          type: 'result',
+          text: safeString(result.text)
+        });
+        break;
+      default:
+        console.warn('Unknown message type:', type);
     }
+  } catch (error) {
+    console.error('ASR Error:', error);
+    self.postMessage({
+      type: 'error',
+      error: safeString(error.message || 'ASR processing failed')
+    });
   }
 };
+
+// Cleanup
+self.addEventListener('unload', () => {
+  Promise.all([state.whisperPipeline?.destroy?.(), feature_extractor_FeatureExtractor.cleanup()]).catch(console.error);
+});
 
 //# sourceMappingURL=asr-worker.js.map

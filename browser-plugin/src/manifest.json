@@ -6,10 +6,13 @@
   "permissions": [
     "storage",
     "scripting",
-    "contextMenus"
+    "contextMenus",
+    "audioCapture",
+    "unlimitedStorage"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "https://huggingface.co/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -32,7 +35,7 @@
     "default_popup": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; media-src 'self' mediastream:; worker-src 'self'; connect-src 'self' data: mediastream: https://huggingface.co/; default-src 'self'"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -43,7 +46,9 @@
     "resources": [
       "wasm/*",
       "asr-worker.js",
-      "mic-icon.svg"
+      "mic-icon.svg",
+      "models/*",
+      "preprocessor_config.json"
     ],
     "matches": ["<all_urls>"]
   }]

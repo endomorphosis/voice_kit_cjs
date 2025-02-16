@@ -1,41 +1,104 @@
-// content.js - the content script which runs in the context of web pages, and has access
-// to the DOM and other web APIs.
+// content.js - runs in page context with safe document handling
+(() => {
+  const state = {
+    elements: new Map(),
+    isInitialized: false
+  };
 
-// Wait for document to be fully loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeContent);
-} else {
-  initializeContent();
-}
+  // Safe document access
+  const whenDocumentReady = () => new Promise(resolve => {
+    if (!document || document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => resolve(document));
+    } else {
+      resolve(document);
+    }
+  });
 
-function initializeContent() {
-  // Check for WebGPU support
-  console.log('Checking WebGPU support...');
-  if (!navigator.gpu) {
-    console.log('WebGPU not supported, will use WASM backend');
-  } else {
-    // Test WebGPU capabilities without requiring f16
-    navigator.gpu.requestAdapter().then(adapter => {
-      if (adapter) {
-        console.log('WebGPU supported with adapter:', {
-          name: adapter.name,
-          features: Array.from(adapter.features)
-        });
-      } else {
-        console.log('WebGPU adapter not available, will use WASM backend');
+  // Safe string handling
+  const safeString = input => input == null ? '' : String(input);
+
+  // Safe element creation
+  const createUIElement = (id, config) => {
+    try {
+      const element = document.createElement(config.tag || 'div');
+      element.id = id;
+      
+      if (config.text) {
+        element.textContent = safeString(config.text);
       }
-    }).catch(error => {
-      console.log('WebGPU initialization failed:', error);
-    });
+      
+      if (config.styles) {
+        Object.assign(element.style, config.styles);
+      }
+      
+      if (config.parent) {
+        config.parent.appendChild(element);
+      }
+      
+      state.elements.set(id, element);
+      return element;
+    } catch (error) {
+      console.error('Failed to create UI element:', error);
+      return null;
+    }
+  };
+
+  // Initialize content script safely
+  async function initializeContent() {
+    try {
+      await whenDocumentReady();
+      if (state.isInitialized) return;
+      
+      // WebGPU support check
+      const hasWebGPU = await checkWebGPU();
+      console.log('WebGPU support:', hasWebGPU);
+      
+      // Message handling
+      chrome.runtime.onMessage.addListener((message) => {
+        if (!message || typeof message !== 'object') return;
+        
+        try {
+          switch (message.action) {
+            case 'showLoading':
+              showLoading();
+              break;
+            case 'hideLoading':
+              hideLoading();
+              break;
+            case 'showResult':
+              showResult(message);
+              break;
+            case 'showError':
+              showError(message.error);
+              break;
+          }
+        } catch (error) {
+          console.error('Error handling message:', error);
+          showError(error.message);
+        }
+      });
+
+      state.isInitialized = true;
+    } catch (error) {
+      console.error('Content script initialization failed:', error);
+    }
   }
 
-  // Handles UI interactions and DOM manipulation
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'showLoading') {
-      const div = document.createElement('div');
-      div.id = 'extension-loading';
-      div.textContent = 'Fetching content...';
-      Object.assign(div.style, {
+  // Utility functions with proper error handling
+  async function checkWebGPU() {
+    if (!navigator.gpu) return false;
+    try {
+      const adapter = await navigator.gpu.requestAdapter();
+      return !!adapter;
+    } catch {
+      return false;
+    }
+  }
+
+  function showLoading() {
+    createUIElement('extension-loading', {
+      text: 'Fetching content...',
+      styles: {
         position: 'fixed',
         top: '20px',
         right: '20px',
@@ -44,19 +107,22 @@ function initializeContent() {
         border: '1px solid #ccc',
         borderRadius: '4px',
         zIndex: '10000'
-      });
-      document.body.appendChild(div);
-    }
-    
-    if (message.action === 'hideLoading') {
-      document.getElementById('extension-loading')?.remove();
-    }
+      },
+      parent: document.body
+    });
+  }
 
-    if (message.action === 'showResult') {
-      const { result, userText } = message;
-      const chatContainer = document.createElement('div');
-      chatContainer.id = 'copilot-chat-container';
-      Object.assign(chatContainer.style, {
+  function hideLoading() {
+    const element = state.elements.get('extension-loading');
+    if (element?.parentNode) {
+      element.parentNode.removeChild(element);
+      state.elements.delete('extension-loading');
+    }
+  }
+
+  function showResult({ result, userText }) {
+    const container = createUIElement('copilot-chat-container', {
+      styles: {
         position: 'fixed',
         top: '20px',
         right: '20px',
@@ -69,68 +135,99 @@ function initializeContent() {
         zIndex: '10000',
         display: 'flex',
         flexDirection: 'column'
-      });
+      },
+      parent: document.body
+    });
 
-      const header = document.createElement('div');
-      Object.assign(header.style, {
+    if (!container) return;
+
+    const header = createUIElement('chat-header', {
+      styles: {
         padding: '12px',
         borderBottom: '1px solid #eee',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
-      });
-      header.innerHTML = '<span style="font-weight: bold;">AI Response</span>';
+      },
+      parent: container
+    });
 
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = '×';
-      Object.assign(closeBtn.style, {
+    createUIElement('chat-title', {
+      tag: 'span',
+      text: 'AI Response',
+      styles: {
+        fontWeight: 'bold'
+      },
+      parent: header
+    });
+
+    const closeBtn = createUIElement('chat-close', {
+      tag: 'button',
+      text: '×',
+      styles: {
         border: 'none',
         background: 'none',
         cursor: 'pointer',
         fontSize: '20px',
         padding: '0 4px'
-      });
-      closeBtn.onclick = () => chatContainer.remove();
-      header.appendChild(closeBtn);
+      },
+      parent: header
+    });
 
-      const content = document.createElement('div');
-      Object.assign(content.style, {
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        container.remove();
+        state.elements.clear();
+      };
+    }
+
+    const content = createUIElement('chat-content', {
+      styles: {
         padding: '16px',
         overflowY: 'auto',
         fontSize: '14px',
         lineHeight: '1.5'
+      },
+      parent: container
+    });
+
+    if (content) {
+      createUIElement('user-message', {
+        text: userText,
+        styles: {
+          marginBottom: '12px',
+          padding: '8px 12px',
+          background: '#f0f0f0',
+          borderRadius: '8px'
+        },
+        parent: content
       });
 
-      const userMessage = document.createElement('div');
-      Object.assign(userMessage.style, {
-        marginBottom: '12px',
-        padding: '8px 12px',
-        background: '#f0f0f0',
-        borderRadius: '8px'
+      createUIElement('ai-response', {
+        text: result,
+        styles: {
+          padding: '8px 12px',
+          background: '#e3f2fd',
+          borderRadius: '8px',
+          whiteSpace: 'pre-wrap'
+        },
+        parent: content
       });
-      userMessage.textContent = userText;
-
-      const aiResponse = document.createElement('div');
-      Object.assign(aiResponse.style, {
-        padding: '8px 12px',
-        background: '#e3f2fd',
-        borderRadius: '8px',
-        whiteSpace: 'pre-wrap'
-      });
-      aiResponse.textContent = result;
-
-      content.appendChild(userMessage);
-      content.appendChild(aiResponse);
-      chatContainer.appendChild(header);
-      chatContainer.appendChild(content);
-      document.body.appendChild(chatContainer);
     }
+  }
 
-    if (message.action === 'showError') {
-      alert('Error: ' + message.error);
-    }
-  });
-}
+  function showError(error) {
+    const errorText = safeString(error || 'Unknown error occurred');
+    alert(errorText);
+  }
+
+  // Start initialization
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeContent);
+  } else {
+    initializeContent();
+  }
+})();
 
 function handleTranscription(text) {
   // Only modify the page if we have access to the document

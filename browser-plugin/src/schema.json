@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "modelCache": {
+      "type": "object",
+      "description": "Configuration for model caching",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether model caching is enabled"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path to store cached models"
+        }
+      }
+    },
+    "audioPermissions": {
+      "type": "object",
+      "description": "Audio recording permissions",
+      "properties": {
+        "autoRequest": {
+          "type": "boolean",
+          "description": "Whether to automatically request microphone permissions"
+        }
+      }
+    },
+    "modelConfig": {
+      "type": "object",
+      "description": "Model configuration",
+      "properties": {
+        "whisper": {
+          "type": "object",
+          "properties": {
+            "modelId": {
+              "type": "string",
+              "default": "Xenova/whisper-small"
+            },
+            "featureExtractor": {
+              "type": "string",
+              "default": "WhisperFeatureExtractor"
+            }
+          }
+        }
+      }
+    }
+  }
+}
