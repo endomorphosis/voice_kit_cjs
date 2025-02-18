@@ -1,18 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "WebGPU Transformers.js Extension",
-  "description": "WebGPU-powered Browser Extension using ASR / LLM / TTS using Transformers.js",
+  "name": "Voice Kit WebGPU",
+  "description": "A browser extension using WebGPU and transformers.js for LLM and ASR.",
   "version": "1.0",
   "permissions": [
     "storage",
-    "scripting",
-    "contextMenus",
-    "audioCapture",
-    "unlimitedStorage"
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
-    "<all_urls>",
-    "https://huggingface.co/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js",
@@ -31,11 +28,11 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "DeepSeek Chat",
+    "default_title": "WebGPU Transformers.js",
     "default_popup": "popup.html"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; media-src 'self' mediastream:; worker-src 'self'; connect-src 'self' data: mediastream: https://huggingface.co/; default-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self'"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -48,7 +45,13 @@
       "asr-worker.js",
       "mic-icon.svg",
       "models/*",
-      "preprocessor_config.json"
+      "ort-wasm-simd-threaded.wasm",
+      "ort-wasm-simd.wasm",
+      "ort-wasm-threaded.wasm",
+      "ort-wasm.wasm",
+      "preprocessor_config.json",
+      "tokenizer.json",
+      "tokenizer_config.json"
     ],
     "matches": ["<all_urls>"]
   }]

@@ -1,52 +1,62 @@
 // background.js - Using ES modules
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline, env, AutoTokenizer, AutoModelForCausalLM } from '@xenova/transformers';
 import { preDownloadModels, areModelsCached } from './model-cache.js';
 import { CONTEXT_MENU_ITEM_ID } from './constants.js';
 
 // Configure environment
-env.useBrowserCache = true;
-env.cacheDir = 'models';
-env.allowLocalModels = true;
+env.useBrowserCache = false;
+env.useCustomCache = true;
+env.localModelPath = chrome.runtime.getURL('models');
+env.backends = ['wasm']; // Remove WebGPU from service worker
+env.wasmRoot = chrome.runtime.getURL('wasm/');
 
-// Define StoppingCriteria class
-class InterruptableStoppingCriteria {
-  constructor() {
-    this.shouldStop = false;
-  }
-  
-  async call(outputIds, scores, kwargs = {}) {
-    return this.shouldStop;
-  }
-  
-  interrupt() {
-    this.shouldStop = true;
-  }
-  
-  reset() {
-    this.shouldStop = false;
+let textGenerator = null;
+
+// Initialize LLM
+async function initializeLLM() {
+  if (textGenerator) return;
+
+  try {
+    textGenerator = await pipeline('text-generation', 'Xenova/gpt2-small', {
+      quantized: true
+    });
+
+    console.log('LLM initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize LLM:', error);
+    throw error;
   }
 }
 
-// Initialize model paths properly for extension context
-const getModelPath = () => 'models/';
-
-// State management
-const state = {
+// State management using a closure to avoid global state issues
+const createState = () => ({
   modelStatus: 'uninitialized',
   loadingProgress: 0,
   whisperPipeline: null,
-  stopping_criteria: new InterruptableStoppingCriteria()
-};
+  textPipeline: null,
+  contextMenuCreated: false,
+  stopping_criteria: {
+    shouldStop: false,
+    call: async () => this.shouldStop,
+    interrupt: () => { this.shouldStop = true },
+    reset: () => { this.shouldStop = false }
+  }
+});
+
+const state = createState();
 
 // Broadcast status to all connected clients
-const broadcastStatus = (status, data = null) => {
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        status,
-        data,
-        progress: state.loadingProgress
-      });
+const broadcastStatus = async (status, data = null) => {
+  const ports = [];
+  // Use MessageChannel for reliable communication
+  const channel = new MessageChannel();
+  ports.push(channel.port1);
+  
+  ports.forEach(port => {
+    port.postMessage({
+      status,
+      data,
+      progress: state.loadingProgress
     });
   });
 };
@@ -138,22 +148,33 @@ class TextGenerationPipeline {
 
 // Initialize ASR pipeline with proper error handling
 async function initASR() {
-  try {
-    if (state.whisperPipeline) return state.whisperPipeline;
+  if (state.whisperPipeline) return state.whisperPipeline;
 
-    state.whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
-      quantized: false,
-      local: true,
-      cache_dir: env.cacheDir
-    });
+  try {
+    const pipelineConfig = {
+      quantized: true,
+      progress_callback: (progress) => {
+        if (progress && typeof progress.progress === 'number') {
+          state.loadingProgress = progress.progress;
+          broadcastStatus('loading', progress);
+        }
+      },
+      cache_dir: env.cacheDir,
+      revision: 'main'
+    };
+
+    state.whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', pipelineConfig);
+    
+    if (!state.whisperPipeline) {
+      throw new Error('Failed to initialize ASR pipeline');
+    }
 
     state.modelStatus = 'ready';
-    broadcastStatus('ready');
+    await broadcastStatus('ready');
     return state.whisperPipeline;
   } catch (error) {
-    console.error('Failed to initialize ASR:', error);
     state.modelStatus = 'error';
-    broadcastStatus('error', safeString(error.message));
+    await broadcastStatus('error', error.message);
     throw error;
   }
 }
@@ -179,14 +200,17 @@ self.addEventListener('activate', (event) => {
 
 // Message handling with proper type checking
 self.addEventListener('message', async (event) => {
-  const { type, data } = event.data;
-
-  if (!type) return;
+  const { type, data, port } = event.data || {};
+  
+  if (!type || typeof type !== 'string') {
+    port?.postMessage({ error: 'Invalid message format' });
+    return;
+  }
 
   try {
     switch (type) {
       case 'check_status':
-        event.ports[0]?.postMessage({
+        port?.postMessage({
           status: state.modelStatus,
           progress: state.loadingProgress
         });
@@ -196,15 +220,16 @@ self.addEventListener('message', async (event) => {
         if (!data?.audio) {
           throw new Error('No audio data provided');
         }
-        await handleTranscription(data.audio);
+        
+        const text = await handleTranscription(data.audio);
+        port?.postMessage({ success: true, text });
         break;
 
       default:
-        console.warn('Unknown message type:', type);
+        port?.postMessage({ error: `Unknown message type: ${type}` });
     }
   } catch (error) {
-    console.error('Error handling message:', error);
-    event.ports[0]?.postMessage({ error: safeString(error.message) });
+    port?.postMessage({ error: error.message });
   }
 });
 
@@ -216,71 +241,94 @@ async function handleTranscription(audioData) {
   }
 
   let audioArray;
-  if (audioData instanceof Float32Array) {
-    audioArray = audioData;
-  } else if (Array.isArray(audioData)) {
-    if (!audioData.every(x => typeof x === 'number' && !isNaN(x))) {
-      throw new Error('Invalid audio data - must contain only valid numbers');
+  try {
+    if (audioData instanceof Float32Array) {
+      audioArray = audioData;
+    } else if (ArrayBuffer.isView(audioData)) {
+      audioArray = new Float32Array(audioData.buffer);
+    } else if (Array.isArray(audioData)) {
+      if (!audioData.every(x => typeof x === 'number' && !isNaN(x))) {
+        throw new Error('Invalid audio data - must contain only valid numbers');
+      }
+      audioArray = Float32Array.from(audioData);
+    } else {
+      throw new Error('Invalid audio data format');
     }
-    audioArray = Float32Array.from(audioData);
-  } else {
-    throw new Error('Invalid audio data format');
+  } catch (error) {
+    throw new Error(`Failed to process audio data: ${error.message}`);
   }
 
   const result = await pipeline(audioArray);
-  if (!result?.text) {
-    throw new Error('No transcription result');
-  }
-
-  broadcastStatus('transcription', result.text);
+  return safeProcessText(result?.text);
 }
 
 // Initialize extension
 async function initializeExtension() {
   try {
-    await chrome.contextMenus.create({
-      id: CONTEXT_MENU_ITEM_ID,
-      title: 'Generate from "%s"',
-      contexts: ["selection"]
-    });
-
+    // First check and initialize models
     const modelsAreCached = await areModelsCached();
     if (!modelsAreCached) {
       await preDownloadModels((progress) => {
-        state.loadingProgress = progress.progress || 0;
-        broadcastStatus('loading', {
-          status: 'downloading',
-          model: progress.model,
-          file: progress.file,
-          progress: state.loadingProgress
-        });
+        if (typeof progress.progress === 'number') {
+          state.loadingProgress = progress.progress;
+          broadcastStatus('loading', {
+            status: 'downloading',
+            model: progress.model,
+            file: progress.file,
+            progress: state.loadingProgress
+          });
+        }
       });
     }
 
+    // Initialize ASR pipeline
     await initASR();
+
+    // Create context menu after models are loaded
+    if (!state.contextMenuCreated) {
+      await chrome.contextMenus.removeAll();
+      await chrome.contextMenus.create({
+        id: CONTEXT_MENU_ITEM_ID,
+        title: 'Generate from "%s"',
+        contexts: ["selection"]
+      });
+      state.contextMenuCreated = true;
+    }
     
   } catch (error) {
     console.error('Error initializing extension:', error);
     state.modelStatus = 'error';
-    broadcastStatus('error', error.message);
+    await broadcastStatus('error', error.message);
+    throw error;
   }
 }
 
-// Context menu handler
+// Context menu handler with duplicate check
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== CONTEXT_MENU_ITEM_ID) return;
-
+  if (info.menuItemId !== CONTEXT_MENU_ITEM_ID || !tab?.id) return;
+  
   try {
     const text = info.selectionText;
-    if (!text) throw new Error('No text selected');
-
-    const result = await TextGenerationPipeline.getInstance().then(pipeline => 
-      pipeline.generate(text)
-    );
-
+    if (!text?.trim()) throw new Error('No text selected');
+    
+    const pipelineConfig = {
+      quantized: true,
+      cache_dir: env.cacheDir,
+      revision: 'main'
+    };
+    
+    const generator = await pipeline('text-generation', 'Xenova/gpt2-small', pipelineConfig);
+    
+    const result = await generator(text, {
+      max_new_tokens: 256,
+      temperature: 0.7,
+      top_p: 0.95,
+      do_sample: true
+    });
+    
     await chrome.tabs.sendMessage(tab.id, { 
       action: 'showResult',
-      result,
+      result: result[0]?.generated_text || 'No result generated',
       userText: text
     });
   } catch (error) {
@@ -292,5 +340,147 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // Safe string handling
-const safeString = input => input == null ? '' : String(input);
+const safeString = (input) => {
+  if (input === null || input === undefined) return '';
+  if (typeof input === 'string') return input;
+  if (input && typeof input.toString === 'function') return input.toString();
+  return '';
+};
+
+// Safe text processing
+function safeProcessText(text) {
+  if (!text) return '';
+  return String(text).trim();
+}
+
+// Initialize models
+const initializeModels = async () => {
+  try {
+    state.modelStatus = 'loading';
+    broadcastStatus('loading', 'Initializing models...');
+
+    // First check if models are cached
+    const cached = await areModelsCached();
+    if (!cached) {
+      await preDownloadModels((progress) => {
+        state.loadingProgress = progress.progress || 0;
+        broadcastStatus('loading', progress);
+      });
+    }
+
+    state.modelStatus = 'ready';
+    broadcastStatus('ready');
+  } catch (error) {
+    console.error('Error initializing extension:', error);
+    state.modelStatus = 'error';
+    broadcastStatus('error', error.message);
+    throw error;
+  }
+};
+
+// Handle messages from popup and content script with connection check
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || typeof message !== 'object') {
+    sendResponse({ error: 'Invalid message format' });
+    return true;
+  }
+
+  // Create a promise to handle the message
+  const messagePromise = (async () => {
+    try {
+      const response = await handleMessage(message);
+      if (chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError.message);
+      }
+      return response;
+    } catch (error) {
+      console.error('Message handling error:', error);
+      return { error: error.message };
+    }
+  })();
+
+  // Handle the promise and ensure response is sent
+  messagePromise.then(response => {
+    try {
+      if (chrome.runtime.lastError) {
+        console.error('Runtime error:', chrome.runtime.lastError);
+        return;
+      }
+      sendResponse(response);
+    } catch (error) {
+      console.error('Response error:', error);
+    }
+  });
+
+  return true; // Will respond asynchronously
+});
+
+// Handle messages with retries
+async function handleMessage(message) {
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      switch (message.action) {
+        case 'generate':
+          if (!textGenerator) {
+            await initializeLLM();
+          }
+          const processedText = safeProcessText(message.text);
+          const result = await textGenerator(processedText, {
+            max_new_tokens: 50,
+            temperature: 0.7
+          });
+          return { text: safeProcessText(result[0]?.generated_text) };
+
+        case 'checkGPU':
+          return { hasWebGPU: false }; // Service workers don't support WebGPU
+
+        default:
+          throw new Error(`Unknown action: ${message.action}`);
+      }
+    } catch (error) {
+      retries--;
+      if (retries === 0) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retry
+    }
+  }
+}
+
+// Initialize on install/update
+chrome.runtime.onInstalled.addListener(() => {
+  initializeModels().catch(console.error);
+  initializeLLM().catch(console.error);
+});
+
+console.log('Background service worker running.');
+
+// Use chrome.runtime messaging without relying on document
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Received message in background:', message);
+  // Process messages related to LLM/ASR initialization
+  if (message.type === 'initialize') {
+    // Initialize Transformers.js and WebGPU components here
+    // For example, dynamic import modules as needed
+    import('./local-model-loader.js').then(module => {
+      module.initializeModel().then(() => {
+        sendResponse({ status: 'initialized' });
+      }).catch(err => {
+        sendResponse({ status: 'error', error: String(err) });
+      });
+    });
+    return true; // asynchronous response
+  } else {
+    sendResponse({ status: 'unrecognized message' });
+  }
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('Extension installed');
+});
+
+chrome.action.onClicked.addListener(async (tab) => {
+  const { modelLoader } = await import('./local-model-loader.js');
+  const model = await modelLoader.loadModel('Xenova/whisper-small');
+  console.log('Model loaded:', model);
+});
 

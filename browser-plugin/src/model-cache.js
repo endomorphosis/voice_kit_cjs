@@ -1,79 +1,94 @@
 import { pipeline, env } from "@xenova/transformers";
 import { cacheManager } from './cache-manager.js';
 
-// Configure environment
-env.useBrowserCache = false; // Disable browser cache to use our own caching
+// Configure environment for browser extension
+env.useBrowserCache = true;
 env.allowLocalModels = true;
+env.allowRemoteModels = true;
 env.useModelCaching = true;
+env.localModelPath = chrome.runtime.getURL('models');
+env.cacheDir = env.localModelPath;
+env.useFS = false;
+env.wasmPaths = {
+  'ort-wasm-simd-threaded.wasm': chrome.runtime.getURL('wasm/ort-wasm-simd-threaded.wasm'),
+  'ort-wasm-simd.wasm': chrome.runtime.getURL('wasm/ort-wasm-simd.wasm'),
+  'ort-wasm-threaded.wasm': chrome.runtime.getURL('wasm/ort-wasm-threaded.wasm'),
+  'ort-wasm.wasm': chrome.runtime.getURL('wasm/ort-wasm.wasm')
+};
+env.backends = ['wasm'];
+env.quantized = true;
 
-// Model paths and configuration
+// Model configurations
 const MODELS = {
-  TEXT: "onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX",
-  ASR: "Xenova/whisper-small"
+  TEXT: {
+    modelId: "Xenova/gpt2-small",
+    type: "text-generation",
+    files: [
+      "tokenizer.json",
+      "tokenizer_config.json",
+      "config.json",
+      "model.onnx"
+    ]
+  },
+  ASR: {
+    modelId: "Xenova/whisper-small",
+    type: "automatic-speech-recognition",
+    files: [
+      "preprocessor_config.json",
+      "tokenizer.json",
+      "tokenizer_config.json",
+      "config.json",
+      "decoder_model_merged.onnx",
+      "encoder_model.onnx"
+    ]
+  }
 };
 
-// Helper to get model files from HuggingFace
-async function fetchModelFile(modelId, fileName) {
-  const response = await fetch(`https://huggingface.co/${modelId}/resolve/main/${fileName}`);
-  if (!response.ok) throw new Error(`Failed to fetch ${fileName}`);
-  const data = await response.arrayBuffer();
-  return new Uint8Array(data);
+// Initialize WASM
+async function initWasm() {
+  try {
+    const wasmFiles = Object.keys(env.wasmPaths);
+    await Promise.all(wasmFiles.map(async (file) => {
+      const response = await fetch(env.wasmPaths[file]);
+      if (!response.ok) throw new Error(`Failed to load ${file}`);
+      const wasmBuffer = await response.arrayBuffer();
+      await WebAssembly.compile(wasmBuffer);
+    }));
+  } catch (error) {
+    console.error('WASM initialization error:', error);
+    throw error;
+  }
 }
 
 // Download and cache models
 export const preDownloadModels = async (progressCallback) => {
   try {
-    for (const [type, modelId] of Object.entries(MODELS)) {
-      console.log(`Pre-downloading ${type} model: ${modelId}`);
-      
-      // Check cache first
-      const cacheKey = `${type}_${modelId}`;
-      if (await cacheManager.has(cacheKey)) {
-        console.log(`Using cached model: ${modelId}`);
-        continue;
-      }
+    // Initialize WASM first
+    await initWasm();
 
-      const pipelineType = type === 'ASR' ? 
-        'automatic-speech-recognition' : 
-        'text-generation';
-
-      // For ASR, ensure we have the feature extractor config
-      if (type === 'ASR') {
-        const configData = await fetchModelFile(modelId, 'preprocessor_config.json');
-        await cacheManager.set(`${cacheKey}_config`, configData);
-      }
-
-      const pipelineConfig = {
-        quantized: true,
-        local: true,
-        cache_dir: 'models',
-        progress_callback: (data) => {
-          if (progressCallback) {
-            progressCallback({
-              model: type,
-              ...data
-            });
-          }
-        }
-      };
-
-      if (type === 'ASR') {
-        pipelineConfig.config = {
-          model_type: 'whisper',
-          feature_extractor_type: 'WhisperFeatureExtractor'
+    for (const [type, config] of Object.entries(MODELS)) {
+      try {
+        const pipelineConfig = {
+          quantized: true,
+          progress_callback: progressCallback,
+          cache_dir: env.cacheDir,
+          local_files_only: false,
+          revision: 'main'
         };
+        
+        const modelInstance = await pipeline(config.type, config.modelId, pipelineConfig);
+        
+        await cacheManager.set(`${type}_${config.modelId}`, {
+          type: config.type,
+          modelId: config.modelId,
+          timestamp: Date.now()
+        });
+
+        console.log(`Successfully cached ${type} model`);
+      } catch (modelError) {
+        console.error(`Error loading ${type} model:`, modelError);
+        throw modelError;
       }
-
-      const instance = await pipeline(pipelineType, modelId, pipelineConfig);
-      
-      // Cache model data
-      await cacheManager.set(cacheKey, {
-        type: pipelineType,
-        modelId,
-        timestamp: Date.now()
-      });
-
-      console.log(`Successfully cached ${type} model`);
     }
     return true;
   } catch (error) {
@@ -85,10 +100,24 @@ export const preDownloadModels = async (progressCallback) => {
 // Check cached models
 export const areModelsCached = async () => {
   try {
+    await initWasm();
+    
     const results = await Promise.all(
-      Object.entries(MODELS).map(async ([type, modelId]) => {
-        const cacheKey = `${type}_${modelId}`;
-        return await cacheManager.has(cacheKey);
+      Object.entries(MODELS).map(async ([type, config]) => {
+        try {
+          const pipelineConfig = {
+            quantized: true,
+            local_files_only: true,
+            cache_dir: env.cacheDir,
+            revision: 'main'
+          };
+          
+          await pipeline(config.type, config.modelId, pipelineConfig);
+          return true;
+        } catch (error) {
+          console.warn(`Error checking ${type} model:`, error);
+          return false;
+        }
       })
     );
     return results.every(Boolean);

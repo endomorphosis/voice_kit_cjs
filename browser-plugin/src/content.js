@@ -1,241 +1,191 @@
-// content.js - runs in page context with safe document handling
+// IIFE to avoid global scope pollution and ensure proper module isolation
 (() => {
   const state = {
-    elements: new Map(),
-    isInitialized: false
+    isInitialized: false,
+    elements: new Map()
   };
 
-  // Safe document access
-  const whenDocumentReady = () => new Promise(resolve => {
-    if (!document || document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => resolve(document));
-    } else {
-      resolve(document);
-    }
-  });
-
-  // Safe string handling
-  const safeString = input => input == null ? '' : String(input);
-
-  // Safe element creation
-  const createUIElement = (id, config) => {
-    try {
-      const element = document.createElement(config.tag || 'div');
-      element.id = id;
-      
-      if (config.text) {
-        element.textContent = safeString(config.text);
+  // Safe DOM access utility
+  const DOM = {
+    ready: () => {
+      return new Promise(resolve => {
+        if (document.readyState !== 'loading') resolve();
+        else document.addEventListener('DOMContentLoaded', resolve);
+      });
+    },
+    safeCreateElement: (tagName, options = {}) => {
+      try {
+        const element = document.createElement(tagName);
+        if (options.id) element.id = options.id;
+        if (options.className) element.className = options.className;
+        if (options.text) element.textContent = DOM.sanitize(options.text);
+        if (options.styles) Object.assign(element.style, options.styles);
+        return element;
+      } catch (error) {
+        console.error('Failed to create element:', error);
+        return null;
       }
-      
-      if (config.styles) {
-        Object.assign(element.style, config.styles);
-      }
-      
-      if (config.parent) {
-        config.parent.appendChild(element);
-      }
-      
-      state.elements.set(id, element);
-      return element;
-    } catch (error) {
-      console.error('Failed to create UI element:', error);
-      return null;
+    },
+    sanitize: (text) => {
+      if (!text) return '';
+      return String(text).replace(/[<>&"']/g, c => ({
+        '<': '&lt;',
+        '>': '&gt;',
+        '&': '&amp;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[c] || c));
     }
   };
 
-  // Initialize content script safely
-  async function initializeContent() {
-    try {
-      await whenDocumentReady();
-      if (state.isInitialized) return;
-      
-      // WebGPU support check
-      const hasWebGPU = await checkWebGPU();
-      console.log('WebGPU support:', hasWebGPU);
-      
-      // Message handling
-      chrome.runtime.onMessage.addListener((message) => {
-        if (!message || typeof message !== 'object') return;
-        
-        try {
-          switch (message.action) {
-            case 'showLoading':
-              showLoading();
-              break;
-            case 'hideLoading':
-              hideLoading();
-              break;
-            case 'showResult':
-              showResult(message);
-              break;
-            case 'showError':
-              showError(message.error);
-              break;
+  // Message handling with proper type checking
+  class MessageHandler {
+    static send(message) {
+      if (!message || typeof message !== 'object') {
+        return Promise.reject(new Error('Invalid message format'));
+      }
+      return chrome.runtime.sendMessage(message);
+    }
+
+    static listen() {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (!message?.action) {
+          sendResponse({ error: 'Invalid message format' });
+          return true;
+        }
+
+        this.handleMessage(message, sender)
+          .then(response => sendResponse(response))
+          .catch(error => sendResponse({ error: error.message }));
+
+        return true; // Will respond asynchronously
+      });
+    }
+
+    static async handleMessage(message, sender) {
+      switch (message.action) {
+        case 'showResult':
+          if (!message.result) throw new Error('No result provided');
+          UI.showResult(message.result, message.userText);
+          return { success: true };
+
+        case 'showError':
+          UI.showError(message.error);
+          return { success: true };
+
+        default:
+          throw new Error(`Unknown action: ${message.action}`);
+      }
+    }
+  }
+
+  // UI management
+  const UI = {
+    containers: new Map(),
+
+    createContainer(id, options = {}) {
+      try {
+        let container = this.containers.get(id);
+        if (container?.isConnected) return container;
+
+        container = DOM.safeCreateElement('div', {
+          id,
+          styles: {
+            position: 'fixed',
+            zIndex: '10000',
+            padding: '15px',
+            borderRadius: '8px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            ...options.styles
           }
-        } catch (error) {
-          console.error('Error handling message:', error);
-          showError(error.message);
+        });
+
+        if (!container) throw new Error('Failed to create container');
+
+        document.body.appendChild(container);
+        this.containers.set(id, container);
+        return container;
+      } catch (error) {
+        console.error('Error creating container:', error);
+        return null;
+      }
+    },
+
+    showResult(result, userText) {
+      const container = this.createContainer('extension-result', {
+        styles: {
+          bottom: '20px',
+          right: '20px',
+          maxWidth: '400px',
+          background: 'white'
         }
       });
 
+      if (!container) return;
+
+      const content = DOM.safeCreateElement('div');
+      if (!content) return;
+
+      content.innerHTML = `
+        <div style="margin-bottom: 10px; color: #666;">${DOM.sanitize(userText || '')}</div>
+        <div style="margin-bottom: 15px;">${DOM.sanitize(result)}</div>
+      `;
+
+      const closeButton = DOM.safeCreateElement('button', {
+        text: 'Close',
+        styles: {
+          padding: '5px 10px',
+          border: 'none',
+          background: '#f0f0f0',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }
+      });
+
+      if (closeButton) {
+        closeButton.onclick = () => container.remove();
+        content.appendChild(closeButton);
+      }
+
+      container.innerHTML = '';
+      container.appendChild(content);
+    },
+
+    showError(error) {
+      const container = this.createContainer('extension-error', {
+        styles: {
+          top: '20px',
+          right: '20px',
+          background: '#ffebee',
+          border: '1px solid #ffcdd2'
+        }
+      });
+
+      if (!container) return;
+
+      container.textContent = DOM.sanitize(error || 'Unknown error occurred');
+
+      setTimeout(() => container.remove(), 5000);
+    }
+  };
+
+  // Initialize safely
+  async function initialize() {
+    if (state.isInitialized) return;
+
+    try {
+      await DOM.ready();
+      MessageHandler.listen();
       state.isInitialized = true;
     } catch (error) {
-      console.error('Content script initialization failed:', error);
+      console.error('Failed to initialize content script:', error);
     }
-  }
-
-  // Utility functions with proper error handling
-  async function checkWebGPU() {
-    if (!navigator.gpu) return false;
-    try {
-      const adapter = await navigator.gpu.requestAdapter();
-      return !!adapter;
-    } catch {
-      return false;
-    }
-  }
-
-  function showLoading() {
-    createUIElement('extension-loading', {
-      text: 'Fetching content...',
-      styles: {
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        padding: '10px',
-        background: 'white',
-        border: '1px solid #ccc',
-        borderRadius: '4px',
-        zIndex: '10000'
-      },
-      parent: document.body
-    });
-  }
-
-  function hideLoading() {
-    const element = state.elements.get('extension-loading');
-    if (element?.parentNode) {
-      element.parentNode.removeChild(element);
-      state.elements.delete('extension-loading');
-    }
-  }
-
-  function showResult({ result, userText }) {
-    const container = createUIElement('copilot-chat-container', {
-      styles: {
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        width: '400px',
-        maxHeight: '80vh',
-        background: 'white',
-        border: '1px solid #ccc',
-        borderRadius: '8px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        zIndex: '10000',
-        display: 'flex',
-        flexDirection: 'column'
-      },
-      parent: document.body
-    });
-
-    if (!container) return;
-
-    const header = createUIElement('chat-header', {
-      styles: {
-        padding: '12px',
-        borderBottom: '1px solid #eee',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      },
-      parent: container
-    });
-
-    createUIElement('chat-title', {
-      tag: 'span',
-      text: 'AI Response',
-      styles: {
-        fontWeight: 'bold'
-      },
-      parent: header
-    });
-
-    const closeBtn = createUIElement('chat-close', {
-      tag: 'button',
-      text: '×',
-      styles: {
-        border: 'none',
-        background: 'none',
-        cursor: 'pointer',
-        fontSize: '20px',
-        padding: '0 4px'
-      },
-      parent: header
-    });
-
-    if (closeBtn) {
-      closeBtn.onclick = () => {
-        container.remove();
-        state.elements.clear();
-      };
-    }
-
-    const content = createUIElement('chat-content', {
-      styles: {
-        padding: '16px',
-        overflowY: 'auto',
-        fontSize: '14px',
-        lineHeight: '1.5'
-      },
-      parent: container
-    });
-
-    if (content) {
-      createUIElement('user-message', {
-        text: userText,
-        styles: {
-          marginBottom: '12px',
-          padding: '8px 12px',
-          background: '#f0f0f0',
-          borderRadius: '8px'
-        },
-        parent: content
-      });
-
-      createUIElement('ai-response', {
-        text: result,
-        styles: {
-          padding: '8px 12px',
-          background: '#e3f2fd',
-          borderRadius: '8px',
-          whiteSpace: 'pre-wrap'
-        },
-        parent: content
-      });
-    }
-  }
-
-  function showError(error) {
-    const errorText = safeString(error || 'Unknown error occurred');
-    alert(errorText);
   }
 
   // Start initialization
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeContent);
-  } else {
-    initializeContent();
-  }
+  initialize();
 })();
-
-function handleTranscription(text) {
-  // Only modify the page if we have access to the document
-  if (document && document.body) {
-    // Handle the transcription result
-    console.log('Received transcription:', text);
-  }
-}
 
 // Send audio data to background script
 function sendAudioData(audioData) {
@@ -257,3 +207,67 @@ function sendAudioData(audioData) {
 
 // You can also add your own UI elements or handlers here to trigger text generation
 // The context menu integration is handled by background.js
+
+const RESULT_CONTAINER_ID = 'transformers-js-result-container';
+
+// Create styled container for results
+function createResultContainer() {
+  const container = document.createElement('div');
+  container.id = RESULT_CONTAINER_ID;
+  container.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    max-width: 400px;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 10000;
+    font-family: system-ui, -apple-system, sans-serif;
+  `;
+  return container;
+}
+
+// Show result in a floating container
+function showResult(result, userText) {
+  let container = document.getElementById(RESULT_CONTAINER_ID);
+  if (!container) {
+    container = createResultContainer();
+    document.body.appendChild(container);
+  }
+
+  container.innerHTML = `
+    <div style="margin-bottom: 10px; color: #666;">Input: ${userText}</div>
+    <div style="margin-bottom: 15px;">${result}</div>
+    <button onclick="this.parentElement.remove()" style="
+      padding: 5px 10px;
+      border: none;
+      background: #f0f0f0;
+      border-radius: 4px;
+      cursor: pointer;
+    ">Close</button>
+  `;
+}
+
+// Handle messages from background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || !message.action) return;
+
+  try {
+    switch (message.action) {
+      case 'showResult':
+        if (message.result && message.userText) {
+          showResult(message.result, message.userText);
+        }
+        break;
+      
+      case 'showError':
+        console.error('Error from extension:', message.error);
+        showResult(`Error: ${message.error}`, 'Failed operation');
+        break;
+    }
+  } catch (error) {
+    console.error('Error handling message:', error);
+  }
+});

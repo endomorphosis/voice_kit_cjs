@@ -8,33 +8,20 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('webpack').Configuration} */
 const config = {
-  mode: "development",
-  devtool: 'source-map',
+  mode: "production",
   entry: {
     popup: "./src/popup.js",
-    'asr-worker': { 
-      import: "./src/asr-worker.js",
-      filename: "asr-worker.js",
-      library: {
-        type: "module"
-      }
-    },
     background: "./src/background.js",
-    content: "./src/content.js"
+    content: "./src/content.js",
+    'asr-worker': "./src/asr-worker.js"
   },
   target: ['web', 'es2020'],
   experiments: {
     asyncWebAssembly: true,
-    outputModule: true,
-    topLevelAwait: true
+    syncWebAssembly: true
   },
   resolve: {
-    alias: {
-      "@huggingface/transformers": path.resolve(
-        __dirname,
-        "node_modules/@huggingface/transformers",
-      ),
-    },
+    extensions: ['.js'],
     fallback: {
       fs: false,
       path: false,
@@ -46,18 +33,13 @@ const config = {
     clean: true,
     publicPath: '',
     filename: '[name].js',
-    environment: {
-      dynamicImport: true,
-      module: true
-    },
-    webassemblyModuleFilename: "wasm/[hash].wasm",
-    wasmLoading: 'fetch',
-    chunkFormat: 'module'
+    globalObject: 'self',
+    webassemblyModuleFilename: "wasm/[hash].wasm"
   },
   module: {
     rules: [
-      {
-        test: /\.js$/,
+      { 
+        test: /\.m?js$/,
         exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
@@ -69,9 +51,6 @@ const config = {
                 },
                 modules: false
               }]
-            ],
-            plugins: [
-              "@babel/plugin-syntax-top-level-await"
             ]
           }
         }
@@ -80,8 +59,12 @@ const config = {
         test: /\.wasm$/,
         type: "asset/resource",
         generator: {
-          filename: "wasm/[hash][ext]"
+          filename: "wasm/[hash][ext][query]"
         }
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader']
       }
     ]
   },
@@ -95,27 +78,44 @@ const config = {
       patterns: [
         { from: "public" },
         { from: "src/popup.css", to: "popup.css" },
-        { from: "./src/manifest.json", to: 'manifest.json' },
-        { from: './public/icons', to: 'icons' },
-        { from: './src/mic-icon.svg', to: 'mic-icon.svg' },
         { 
-          from: 'node_modules/@xenova/transformers/dist/wasm/',
-          to: 'wasm/',
-          noErrorOnMissing: true
-        },
-        { 
-          from: 'node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/',
-          to: 'wasm/',
-          globOptions: {
-            ignore: ['**/*.ts', '**/*.map', '**/*.js']
+          from: "src/manifest.json",
+          to: "manifest.json",
+          transform(content) {
+            const manifestStr = typeof content === 'string' ? content : content.toString();
+            const manifest = JSON.parse(manifestStr);
+            manifest.content_security_policy = {
+              extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self'"
+            };
+            return JSON.stringify(manifest, null, 2);
           }
+        },
+        { from: "public/icons", to: "icons" },
+        { from: "src/mic-icon.svg", to: "mic-icon.svg" },
+        { 
+          from: 'node_modules/onnxruntime-web/dist/*.wasm',
+          to: 'wasm/[name][ext]'
+        },
+        {
+          from: 'node_modules/@xenova/transformers/dist/tokenizer.wasm',
+          to: 'wasm/tokenizer.wasm',
+          noErrorOnMissing: true
         }
       ]
     })
   ],
   optimization: {
-    minimize: false,
-    splitChunks: false
+    splitChunks: {
+      chunks: 'all',
+      cacheGroups: {
+        defaultVendors: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          priority: -10,
+          reuseExistingChunk: true
+        }
+      }
+    }
   }
 };
 
