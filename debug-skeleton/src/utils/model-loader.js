@@ -1,222 +1,278 @@
 /**
- * Model loader utility with detailed diagnostics
+ * Model Loader Utility
+ * Provides a clean interface for loading and managing transformer models with detailed logging
  */
 import { getLogger } from './logger.js';
-import { featureDetector } from './feature-detector.js';
 
+// Create a dedicated logger for model loading
 const logger = getLogger('ModelLoader');
 
 export class ModelLoader {
-  constructor(options = {}) {
-    this.transformers = options.transformers || null;
-    this.modelId = options.modelId || null;
-    this.task = options.task || null;
-    this.quantized = options.quantized !== false;
-    this.device = options.device || 'auto'; // 'auto', 'cpu', 'webgpu', 'wasm'
-    this.revision = options.revision || 'main';
-    this.loadStartTime = null;
-    this.loadEndTime = null;
-    this.model = null;
-    this.error = null;
-    this.statusCallback = options.statusCallback || null;
-  }
-
   /**
-   * Report status update
+   * Create a new model loader instance
+   * @param {Object} options Configuration options
+   * @param {Object} options.transformers The transformers.js instance
+   * @param {string} options.modelId The model ID to load (e.g. 'Xenova/whisper-small')
+   * @param {string} options.task The task type (e.g. 'automatic-speech-recognition', 'text-generation', 'text-to-speech')
+   * @param {boolean} options.quantized Whether to use quantized models
+   * @param {string} options.device The device to use ('webgpu', 'wasm', 'cpu', or 'auto')
+   * @param {Function} options.statusCallback Callback function for progress updates
    */
-  reportStatus(status, details = {}) {
-    logger.info(`Status update: ${status}`, details);
-    if (this.statusCallback) {
-      this.statusCallback({
-        status,
-        modelId: this.modelId,
-        task: this.task,
-        ...details
-      });
-    }
+  constructor(options) {
+    this.transformers = options.transformers;
+    this.modelId = options.modelId;
+    this.task = options.task;
+    this.quantized = options.quantized !== false;
+    this.device = options.device || 'auto';
+    this.statusCallback = options.statusCallback;
+    
+    this.pipeline = null;
+    this.isLoaded = false;
+    this.error = null;
+    this.loadTime = null;
+    
+    // Create a task-specific logger
+    this.logger = logger.child(this.task);
+    this.logger.info(`Created model loader for ${this.task} using ${this.modelId}`);
+    this.logger.info(`Configuration: quantized=${this.quantized}, device=${this.device}`);
   }
 
   /**
-   * Load the model with detailed diagnostics
+   * Load the model and create a pipeline
+   * @returns {Promise<Object>} The loaded pipeline
    */
   async load() {
-    if (!this.transformers) {
-      const errorMsg = 'Transformers.js library not provided';
-      logger.error(errorMsg);
-      throw new Error(errorMsg);
-    }
-
-    if (!this.modelId || !this.task) {
-      const errorMsg = 'Model ID or task not specified';
-      logger.error(errorMsg);
-      throw new Error(errorMsg);
-    }
-
-    // Check if WebGPU is available when device is webgpu
-    if (this.device === 'webgpu') {
-      const hasWebGPU = await featureDetector.detectWebGPU();
-      if (!hasWebGPU) {
-        const errorMsg = 'WebGPU requested but not available';
-        logger.error(errorMsg);
-        throw new Error(errorMsg);
-      }
-    }
-
-    logger.info(`Starting to load model: ${this.modelId} for task: ${this.task}`);
-    logger.info(`Configuration: device=${this.device}, quantized=${this.quantized}, revision=${this.revision}`);
+    this.logger.info(`Loading model: ${this.modelId}`);
+    this.logger.time('model-loading');
     
-    this.loadStartTime = performance.now();
-    this.reportStatus('loading', { startTime: this.loadStartTime });
-
     try {
-      // Configure environment if needed
+      // Configure environment based on device setting
       this._configureEnvironment();
       
-      // Create a wrapped progress callback for detailed logging
-      const progressCallback = (progress) => {
-        const { file, progress: percent, status } = progress;
-        logger.debug(`Loading ${file}: ${percent?.toFixed(2) || 0}%, status: ${status || 'downloading'}`);
-        this.reportStatus('progress', { file, progress: percent, status });
-      };
-
-      // Prepare pipeline options
-      const pipelineOptions = {
-        quantized: this.quantized,
-        revision: this.revision,
-        progress_callback: progressCallback
-      };
-
-      // Add device specific options
-      if (this.device !== 'auto') {
-        pipelineOptions.device = this.device;
-      }
-
-      // Log the start of the actual model loading
-      logger.info(`Creating pipeline for ${this.task} with model ${this.modelId}`);
-      const pipelineStartTime = performance.now();
+      // Create pipeline with detailed progress tracking
+      this.pipeline = await this.transformers.pipeline(
+        this.task,
+        this.modelId,
+        {
+          quantized: this.quantized,
+          progress_callback: this._handleProgress.bind(this),
+          revision: 'main' // Use main branch
+        }
+      );
       
-      // Load the model via pipeline
-      this.model = await this.transformers.pipeline(this.task, this.modelId, pipelineOptions);
+      const loadTime = this.logger.timeEnd('model-loading');
+      this.loadTime = loadTime;
+      this.isLoaded = true;
       
-      const pipelineTime = performance.now() - pipelineStartTime;
-      logger.info(`Pipeline created in ${pipelineTime.toFixed(2)}ms`);
-      
-      // Attempt a small inference to verify the model works and warm up
-      logger.info('Running test inference to warm up model...');
-      const warmupStartTime = performance.now();
-      
-      await this._runTestInference();
-      
-      const warmupTime = performance.now() - warmupStartTime;
-      logger.info(`Test inference completed in ${warmupTime.toFixed(2)}ms`);
-
-      this.loadEndTime = performance.now();
-      const totalLoadTime = this.loadEndTime - this.loadStartTime;
-      
-      logger.info(`Model loaded successfully in ${totalLoadTime.toFixed(2)}ms`);
-      this.reportStatus('loaded', { 
-        loadTime: totalLoadTime,
-        pipelineTime,
-        warmupTime
-      });
-      
-      return this.model;
+      this.logger.info(`Model loaded successfully in ${loadTime.toFixed(2)}ms`);
+      return this.pipeline;
     } catch (error) {
-      this.loadEndTime = performance.now();
-      const failTime = this.loadEndTime - this.loadStartTime;
-      
       this.error = error;
-      logger.error(`Failed to load model after ${failTime.toFixed(2)}ms:`, error);
-      this.reportStatus('error', { error: error.message, loadTime: failTime });
-      
+      this.logger.error('Failed to load model:', error);
+      this.logger.error(`Stack trace: ${error.stack}`);
       throw error;
     }
   }
-
+  
   /**
-   * Configure the transformers.js environment
+   * Run inference on the loaded model
+   * @param {*} input The input to the model
+   * @param {Object} options Model-specific options
+   * @returns {Promise<*>} The model output
+   */
+  async run(input, options = {}) {
+    if (!this.isLoaded) {
+      this.logger.error('Cannot run inference - model not loaded');
+      throw new Error('Model not loaded');
+    }
+    
+    this.logger.info('Running inference');
+    this.logger.debug('Input:', input);
+    this.logger.debug('Options:', options);
+    this.logger.time('inference');
+    
+    try {
+      const output = await this.pipeline(input, options);
+      
+      const inferenceTime = this.logger.timeEnd('inference');
+      this.logger.info(`Inference completed in ${inferenceTime.toFixed(2)}ms`);
+      this.logger.debug('Output:', output);
+      
+      return {
+        output,
+        timing: inferenceTime
+      };
+    } catch (error) {
+      this.logger.error('Inference failed:', error);
+      this.logger.error(`Stack trace: ${error.stack}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Clean up resources associated with this model
+   */
+  async unload() {
+    this.logger.info('Unloading model');
+    
+    try {
+      // Attempt to clean up resources
+      if (this.pipeline && typeof this.pipeline.dispose === 'function') {
+        await this.pipeline.dispose();
+        this.logger.info('Model disposed successfully');
+      }
+      
+      this.pipeline = null;
+      this.isLoaded = false;
+    } catch (error) {
+      this.logger.error('Error unloading model:', error);
+    }
+  }
+  
+  /**
+   * Configure the transformers.js environment based on device setting
+   * @private
    */
   _configureEnvironment() {
-    if (!this.transformers.env) {
-      logger.warn('Transformers.js environment not available');
-      return;
-    }
+    this.logger.debug(`Configuring environment for device: ${this.device}`);
     
-    logger.debug('Configuring transformers.js environment');
-    
-    // Set backends based on device setting
+    // Set appropriate backends based on device setting
     if (this.device === 'webgpu') {
       this.transformers.env.backends = ['webgpu'];
-      logger.debug('Set backend to WebGPU');
+      this.logger.info('Using WebGPU backend exclusively');
     } else if (this.device === 'wasm') {
       this.transformers.env.backends = ['wasm'];
-      logger.debug('Set backend to WASM');
+      this.logger.info('Using WASM backend exclusively');
     } else if (this.device === 'cpu') {
       this.transformers.env.backends = ['cpu'];
-      logger.debug('Set backend to CPU');
+      this.logger.info('Using CPU backend exclusively');
+    } else {
+      // Keep whatever backends are already configured
+      this.logger.info(`Using existing backend configuration: ${this.transformers.env.backends.join(', ')}`);
     }
     
-    // Other environment settings
-    this.transformers.env.useBrowserCache = true;
-    this.transformers.env.returnTensors = false;
-    
-    logger.debug('Environment configuration complete');
+    // Log current environment configuration
+    this.logger.debug('Transformers environment:', {
+      backends: this.transformers.env.backends,
+      useBrowserCache: this.transformers.env.useBrowserCache,
+      useCustomCache: this.transformers.env.useCustomCache,
+      cacheDir: this.transformers.env.cacheDir
+    });
   }
-
+  
   /**
-   * Run a test inference to warmup the model
+   * Handle progress updates during model loading
+   * @private
+   * @param {Object} progress The progress object from transformers.js
    */
-  async _runTestInference() {
-    if (!this.model) {
-      logger.warn('Cannot run test inference - model not loaded');
-      return;
+  _handleProgress(progress) {
+    // Log the progress
+    const { status, file, progress: percent } = progress;
+    
+    // Detailed logging based on status
+    if (status === 'init') {
+      this.logger.info(`Starting to load ${file}`);
+    } else if (status === 'download') {
+      if (percent !== undefined) {
+        this.logger.debug(`Downloading ${file}: ${percent.toFixed(1)}%`);
+      } else {
+        this.logger.debug(`Downloading ${file}`);
+      }
+    } else if (status === 'ready') {
+      this.logger.info(`File ${file} is ready`);
+    } else if (status === 'progress') {
+      this.logger.debug(`Processing ${file}: ${percent?.toFixed(1) || 0}%`);
+    } else {
+      this.logger.debug(`Status update for ${file}: ${status}`);
+    }
+    
+    // Call the status callback if provided
+    if (this.statusCallback) {
+      this.statusCallback(progress);
+    }
+  }
+  
+  /**
+   * Get detailed information about the model
+   * @returns {Object} Model information
+   */
+  getInfo() {
+    return {
+      modelId: this.modelId,
+      task: this.task,
+      quantized: this.quantized,
+      device: this.device,
+      isLoaded: this.isLoaded,
+      loadTime: this.loadTime,
+      error: this.error ? this.error.message : null,
+      backend: this.transformers.env.backends[0]
+    };
+  }
+  
+  /**
+   * Run a test inference to confirm the model works
+   * @returns {Promise<Object>} Test results
+   */
+  async test() {
+    this.logger.info('Running test inference');
+    
+    if (!this.isLoaded) {
+      try {
+        await this.load();
+      } catch (error) {
+        return {
+          success: false,
+          error: error.message
+        };
+      }
     }
     
     try {
+      let testInput;
+      
+      // Create appropriate test input based on task
       switch (this.task) {
-        case 'text-generation':
-          await this.model('Hello', { max_new_tokens: 1 });
-          break;
-          
         case 'automatic-speech-recognition':
-          // Create a small dummy audio input (1 second of silence)
-          const dummyAudio = new Float32Array(16000).fill(0);
-          await this.model(dummyAudio);
+          // Create a simple test audio (1 second of silence)
+          testInput = new Float32Array(16000).fill(0.01);
           break;
-          
+        case 'text-generation':
+          testInput = 'Hello, how are you?';
+          break;
         case 'text-to-speech':
-          await this.model('Hello', { voice_preset: 'en_speaker_1' });
+          testInput = 'This is a test of speech synthesis.';
           break;
-          
         default:
-          logger.warn(`No test inference implemented for task: ${this.task}`);
-          break;
+          testInput = 'Test input';
       }
+      
+      // Create appropriate test options
+      const testOptions = {};
+      if (this.task === 'text-generation') {
+        testOptions.max_new_tokens = 5;
+      } else if (this.task === 'text-to-speech') {
+        testOptions.voice_preset = 'en_speaker_1';
+      }
+      
+      // Run the test
+      this.logger.time('test-inference');
+      const result = await this.run(testInput, testOptions);
+      const testTime = this.logger.timeEnd('test-inference');
+      
+      this.logger.info(`Test inference successful in ${testTime.toFixed(2)}ms`);
+      
+      return {
+        success: true,
+        time: testTime,
+        result: result.output
+      };
     } catch (error) {
-      logger.error('Test inference failed:', error);
-      // Don't throw here - we still consider the model loaded even if warmup fails
+      this.logger.error('Test inference failed:', error);
+      
+      return {
+        success: false,
+        error: error.message
+      };
     }
-  }
-
-  /**
-   * Get the loaded model
-   */
-  getModel() {
-    return this.model;
-  }
-
-  /**
-   * Get load time metrics
-   */
-  getLoadMetrics() {
-    if (!this.loadStartTime || !this.loadEndTime) {
-      return null;
-    }
-    
-    return {
-      startTime: this.loadStartTime,
-      endTime: this.loadEndTime,
-      totalLoadTimeMs: this.loadEndTime - this.loadStartTime
-    };
   }
 }

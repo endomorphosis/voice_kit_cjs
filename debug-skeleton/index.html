@@ -6,91 +6,120 @@
   <title>Voice Kit Debugging Skeleton</title>
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 1200px;
-      margin: 0 auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
       padding: 20px;
-      background-color: #f7f8fa;
+      background-color: #f5f5f5;
       color: #333;
     }
     .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header h1 {
+      margin: 0;
+    }
+    #overall-status {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+    }
+    .panel-container {
       display: flex;
-      flex-direction: column;
       gap: 20px;
+      flex-wrap: wrap;
     }
     .panel {
-      background-color: white;
+      flex: 1;
+      min-width: 300px;
+      background-color: #fff;
       border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
       padding: 20px;
-      position: relative;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .panel h2 {
-      margin-top: 0;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
+    .panel-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+    .panel-status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
     }
     .controls {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
+      margin-bottom: 15px;
     }
     button {
-      padding: 10px 16px;
       background-color: #4361ee;
       color: white;
       border: none;
+      padding: 8px 16px;
+      margin-right: 8px;
+      margin-bottom: 8px;
       border-radius: 4px;
       cursor: pointer;
-      font-weight: 500;
-      transition: background-color 0.2s ease;
+      font-weight: 600;
     }
     button:hover {
-      background-color: #3a56d4;
+      background-color: #3a0ca3;
     }
     button:disabled {
-      background-color: #a0a0a0;
+      background-color: #ccc;
       cursor: not-allowed;
     }
     button.secondary {
-      background-color: #6c757d;
+      background-color: #4cc9f0;
     }
     button.secondary:hover {
-      background-color: #5a6268;
+      background-color: #4895ef;
     }
     button.danger {
-      background-color: #dc3545;
+      background-color: #e63946;
     }
     button.danger:hover {
-      background-color: #c82333;
+      background-color: #d00000;
     }
     textarea {
       width: 100%;
-      min-height: 80px;
-      padding: 10px;
+      min-height: 100px;
+      padding: 8px;
       border-radius: 4px;
       border: 1px solid #ddd;
-      resize: vertical;
-      font-family: inherit;
       margin-bottom: 10px;
+      font-family: monospace;
+      resize: vertical;
     }
     .status-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 15px;
-      margin-bottom: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 10px;
+      margin-bottom: 15px;
     }
     .status-item {
-      padding: 15px;
-      border-radius: 6px;
-      background-color: #f8f9fa;
-      border: 1px solid #e9ecef;
-      display: flex;
-      flex-direction: column;
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
     }
     .status-name {
       font-weight: bold;
@@ -105,9 +134,9 @@
     .status-loading { background-color: #e9ecef; border-color: #dee2e6; }
     
     .badge {
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
       font-weight: bold;
     }
     .badge-success { background-color: #28a745; color: white; }
@@ -115,243 +144,230 @@
     .badge-warning { background-color: #ffc107; color: black; }
     .badge-loading { background-color: #6c757d; color: white; }
     
+    .progress-container {
+      width: 100%;
+      height: 8px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background-color: #4cc9f0;
+      transition: width 0.3s ease;
+    }
     .log-container {
       height: 300px;
       overflow-y: auto;
       background-color: #212529;
       color: #f8f9fa;
-      border-radius: 4px;
-      font-family: monospace;
       padding: 10px;
-      margin-top: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-family: monospace;
+      font-size: 14px;
     }
     .log-entry {
-      margin: 2px 0;
-      padding: 1px 0;
-      display: flex;
+      margin-bottom: 4px;
+      border-bottom: 1px solid #343a40;
+      padding-bottom: 2px;
     }
-    .log-entry.level-error { color: #f77; }
-    .log-entry.level-warn { color: #fc7; }
-    .log-entry.level-info { color: #7cf; }
-    .log-entry.level-debug { color: #aaa; }
-    .log-entry.level-trace { color: #777; }
     .log-timestamp {
       color: #6c757d;
-      margin-right: 10px;
-      flex-shrink: 0;
-      width: 60px;
+      margin-right: 8px;
     }
     .log-context {
-      color: #b48ead;
-      margin-right: 10px;
-      flex-shrink: 0;
-      width: 90px;
-      text-align: right;
+      color: #7952b3;
+      margin-right: 8px;
     }
-    .log-level {
-      margin-right: 10px;
-      flex-shrink: 0;
-      width: 60px;
-    }
-    .log-message {
-      flex-grow: 1;
-      word-break: break-word;
-    }
+    .level-error { color: #dc3545; }
+    .level-warn { color: #ffc107; }
+    .level-info { color: #0dcaf0; }
+    .level-debug { color: #adb5bd; }
+    .level-trace { color: #6c757d; }
+    
     .tab-container {
+      margin-bottom: 20px;
+    }
+    .tab-header {
       display: flex;
-      border-bottom: 1px solid #dee2e6;
-      margin-bottom: 15px;
+      border-bottom: 1px solid #ddd;
     }
     .tab {
       padding: 10px 20px;
       cursor: pointer;
       border: 1px solid transparent;
-      border-top-left-radius: 4px;
-      border-top-right-radius: 4px;
       margin-right: 5px;
-      margin-bottom: -1px;
+      border-radius: 4px 4px 0 0;
     }
     .tab.active {
-      border-color: #dee2e6;
-      border-bottom-color: white;
-      background-color: white;
-      font-weight: bold;
+      background-color: #fff;
+      border-color: #ddd;
+      border-bottom-color: #fff;
+      margin-bottom: -1px;
     }
     .tab-content {
       display: none;
+      padding: 15px;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-top: none;
     }
     .tab-content.active {
       display: block;
     }
+    
     .timing-bar {
-      height: 20px;
+      width: 100%;
+      height: 30px;
       display: flex;
-      margin-bottom: 5px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      overflow: hidden;
     }
     .timing-segment {
       height: 100%;
-      position: relative;
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       color: white;
-      font-size: 10px;
-      overflow: hidden;
-    }
-    .progress-container {
-      width: 100%;
-      height: 20px;
-      background-color: #e9ecef;
-      border-radius: 4px;
-      overflow: hidden;
-      margin-bottom: 10px;
-    }
-    .progress-bar {
-      height: 100%;
-      background-color: #4361ee;
-      transition: width 0.3s ease;
-    }
-    .audio-visualizer {
-      width: 100%;
-      height: 80px;
-      background-color: #f8f9fa;
-      border: 1px solid #dee2e6;
-      border-radius: 4px;
-      margin-bottom: 10px;
+      font-weight: bold;
     }
     .hidden {
       display: none;
-    }
-    .loading-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(255, 255, 255, 0.7);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      border-radius: 8px;
-      z-index: 10;
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(0, 0, 0, 0.1);
-      border-radius: 50%;
-      border-top-color: #4361ee;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="panel">
-      <h2>Voice Kit Debugging Skeleton
-        <span class="badge badge-loading" id="overall-status">Initializing</span>
-      </h2>
-      <div class="controls">
-        <button id="detect-features">Detect Features</button>
-        <button id="initialize-all">Initialize All Components</button>
-        <button id="run-complete-pipeline" disabled>Run Complete Pipeline</button>
-        <button id="clear-logs" class="secondary">Clear Logs</button>
-        <button id="reset-system" class="danger">Reset System</button>
+    <div class="header">
+      <h1>Voice Kit Debug Console</h1>
+      <div id="overall-status" class="badge badge-loading">Initializing...</div>
+    </div>
+    
+    <div class="panel-container">
+      <!-- System Diagnostics Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>System Diagnostics</h2>
+        </div>
+        <div class="controls">
+          <button id="detect-features">Detect Features</button>
+          <button id="run-diagnostics">Run WebGPU Diagnostics</button>
+          <button id="enable-verbose" class="secondary">Enable Verbose Logging</button>
+          <button id="disable-debug" class="secondary">Disable Debug Logs</button>
+        </div>
+        
+        <h3>Browser Features</h3>
+        <div id="browser-features" class="status-grid">
+          <!-- Feature status will be inserted here -->
+        </div>
+        
+        <h3>WebGPU Information</h3>
+        <div id="webgpu-info">
+          <!-- WebGPU info will be inserted here -->
+        </div>
       </div>
       
-      <div class="tab-container">
-        <div class="tab active" data-tab="status">Status</div>
-        <div class="tab" data-tab="features">Features</div>
-        <div class="tab" data-tab="logging">Logging</div>
-        <div class="tab" data-tab="testing">Testing</div>
-      </div>
-      
-      <div class="tab-content active" id="tab-status">
+      <!-- Component Status Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Component Status</h2>
+        </div>
+        <div class="controls">
+          <button id="initialize-all">Initialize All Components</button>
+          <button id="run-complete-pipeline" disabled>Run Complete Pipeline</button>
+          <button id="reset-system" class="danger">Reset System</button>
+        </div>
+        
         <h3>Component Status</h3>
-        <div class="status-grid" id="component-status">
-          <!-- Component status items will be inserted here -->
+        <div id="component-status" class="status-grid">
+          <!-- Component status will be inserted here -->
         </div>
         
         <h3>Model Status</h3>
-        <div class="status-grid" id="model-status">
-          <!-- Model status items will be inserted here -->
-        </div>
-      </div>
-      
-      <div class="tab-content" id="tab-features">
-        <h3>Browser Features</h3>
-        <div class="status-grid" id="browser-features">
-          <!-- Feature detection results will be inserted here -->
-        </div>
-        
-        <h3>WebGPU Info</h3>
-        <div id="webgpu-info">
-          <p>Click "Detect Features" to get WebGPU information</p>
-        </div>
-      </div>
-      
-      <div class="tab-content" id="tab-logging">
-        <h3>Log Settings</h3>
-        <div class="controls">
-          <button id="enable-verbose">Enable Verbose Logging</button>
-          <button id="disable-debug" class="secondary">Disable Debug Logs</button>
-        </div>
-        <div class="log-container" id="log-container">
-          <!-- Log entries will be inserted here -->
-        </div>
-      </div>
-      
-      <div class="tab-content" id="tab-testing">
-        <h3>Test Individual Components</h3>
-        
-        <div class="panel">
-          <h4>ASR (Speech Recognition)</h4>
-          <div class="controls">
-            <button id="initialize-asr">Initialize ASR</button>
-            <button id="test-asr" disabled>Record and Transcribe</button>
-          </div>
-          <div class="progress-container hidden" id="asr-progress-container">
-            <div class="progress-bar" id="asr-progress"></div>
-          </div>
-          <div class="audio-visualizer" id="audio-visualizer"></div>
-          <textarea id="transcription-output" placeholder="Transcription will appear here" readonly></textarea>
-        </div>
-        
-        <div class="panel">
-          <h4>LLM (Text Generation)</h4>
-          <div class="controls">
-            <button id="initialize-llm">Initialize LLM</button>
-            <button id="test-llm" disabled>Generate Response</button>
-          </div>
-          <div class="progress-container hidden" id="llm-progress-container">
-            <div class="progress-bar" id="llm-progress"></div>
-          </div>
-          <textarea id="llm-input" placeholder="Enter text for LLM to process"></textarea>
-          <textarea id="llm-output" placeholder="Generated text will appear here" readonly></textarea>
-        </div>
-        
-        <div class="panel">
-          <h4>TTS (Text-to-Speech)</h4>
-          <div class="controls">
-            <button id="initialize-tts">Initialize TTS</button>
-            <button id="test-tts" disabled>Synthesize Speech</button>
-            <button id="play-tts" disabled>Play Audio</button>
-          </div>
-          <div class="progress-container hidden" id="tts-progress-container">
-            <div class="progress-bar" id="tts-progress"></div>
-          </div>
-          <textarea id="tts-input" placeholder="Enter text to synthesize"></textarea>
+        <div id="model-status" class="status-grid">
+          <!-- Model status will be inserted here -->
         </div>
       </div>
     </div>
     
-    <div class="panel">
-      <h2>Performance Metrics</h2>
-      <div id="performance-metrics">
-        <p>No performance data available yet</p>
+    <div class="tab-container">
+      <div class="tab-header">
+        <div class="tab active" data-tab="asr">ASR</div>
+        <div class="tab" data-tab="llm">LLM</div>
+        <div class="tab" data-tab="tts">TTS</div>
+        <div class="tab" data-tab="logs">Logs</div>
+        <div class="tab" data-tab="performance">Performance</div>
+      </div>
+      
+      <!-- ASR Tab -->
+      <div id="tab-asr" class="tab-content active">
+        <div class="controls">
+          <button id="initialize-asr">Initialize ASR</button>
+          <button id="test-asr" disabled>Test ASR</button>
+          <button id="record-audio" class="secondary">Record 5s Audio</button>
+        </div>
+        
+        <div id="asr-progress-container" class="progress-container hidden">
+          <div id="asr-progress" class="progress-bar" style="width: 0%"></div>
+        </div>
+        
+        <h3>Transcription Output</h3>
+        <textarea id="transcription-output" readonly placeholder="Transcription will appear here..."></textarea>
+      </div>
+      
+      <!-- LLM Tab -->
+      <div id="tab-llm" class="tab-content">
+        <div class="controls">
+          <button id="initialize-llm">Initialize LLM</button>
+          <button id="test-llm" disabled>Test LLM</button>
+        </div>
+        
+        <div id="llm-progress-container" class="progress-container hidden">
+          <div id="llm-progress" class="progress-bar" style="width: 0%"></div>
+        </div>
+        
+        <h3>Input Text</h3>
+        <textarea id="llm-input" placeholder="Enter text for the language model...">Hello, how are you today?</textarea>
+        
+        <h3>Generated Output</h3>
+        <textarea id="llm-output" readonly placeholder="Generated text will appear here..."></textarea>
+      </div>
+      
+      <!-- TTS Tab -->
+      <div id="tab-tts" class="tab-content">
+        <div class="controls">
+          <button id="initialize-tts">Initialize TTS</button>
+          <button id="test-tts" disabled>Test TTS</button>
+          <button id="play-tts" disabled class="secondary">Play Last Audio</button>
+        </div>
+        
+        <div id="tts-progress-container" class="progress-container hidden">
+          <div id="tts-progress" class="progress-bar" style="width: 0%"></div>
+        </div>
+        
+        <h3>Input Text</h3>
+        <textarea id="tts-input" placeholder="Enter text to synthesize...">This is a test of the speech synthesis system.</textarea>
+      </div>
+      
+      <!-- Logs Tab -->
+      <div id="tab-logs" class="tab-content">
+        <div class="controls">
+          <button id="clear-logs" class="danger">Clear Logs</button>
+        </div>
+        <div id="log-container" class="log-container">
+          <!-- Logs will be inserted here -->
+        </div>
+      </div>
+      
+      <!-- Performance Tab -->
+      <div id="tab-performance" class="tab-content">
+        <h3>Performance Metrics</h3>
+        <div id="performance-metrics">
+          <!-- Performance metrics will be inserted here -->
+        </div>
       </div>
     </div>
   </div>
