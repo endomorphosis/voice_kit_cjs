@@ -30,6 +30,7 @@ class TransformerPipelineManager {
     }
 
     try {
+      console.log('Initializing transformer pipeline:', type);
       const pipelineInstance = await pipeline(type, config.model, {
         quantized: config.quantized,
         progress_callback: progressCallback,
@@ -37,6 +38,7 @@ class TransformerPipelineManager {
         local_files_only: false,
         revision: 'main'
       });
+      console.log('Transformer pipeline initialized:', type);
 
       this.pipelines.set(type, pipelineInstance);
       return pipelineInstance;

@@ -26,6 +26,7 @@ const documentReady = () => new Promise(resolve => {
 
 // Initialize DOM elements
 function initElements() {
+  console.log('Initializing DOM elements');
   state.elements = {
     micButton: document.getElementById('mic-button'),
     chatMessages: document.getElementById('chat-messages'),
@@ -38,10 +39,12 @@ function initElements() {
   Object.entries(state.elements).forEach(([key, element]) => {
     if (!element) throw new Error(`Element ${key} not found`);
   });
+  console.log('DOM elements initialized');
 }
 
 // Add retry logic for message sending
 async function sendMessageWithRetry(message, maxRetries = 3) {
+  console.log('Sending message:', message);
   let lastError;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -59,6 +62,7 @@ async function sendMessageWithRetry(message, maxRetries = 3) {
       await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
     }
   }
+  console.log('Message sent successfully');
   throw lastError;
 }
 
@@ -67,6 +71,7 @@ async function initWorker() {
   if (state.worker) return;
 
   try {
+    console.log('Worker initialization started');
     // Create a message channel for worker communication
     const { port1, port2 } = new MessageChannel();
     const workerUrl = chrome.runtime.getURL('asr-worker.js');
@@ -77,9 +82,12 @@ async function initWorker() {
       credentials: 'same-origin'
     });
 
+    console.log('Worker created:', workerUrl);
+
     // Set up worker message handling
     state.worker.onmessage = event => {
       const { type, text, error } = event.data;
+      console.log('Worker message received:', event.data);
       switch (type) {
         case 'ready':
           updateStatus('ASR ready');
@@ -102,12 +110,13 @@ async function initWorker() {
 
     // Initialize worker with port transfer
     state.worker.postMessage({ action: 'initializeASR' }, [port2]);
-    
+    console.log('Worker initialization message sent');
+
     // Wait for ready message
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Worker initialization timeout'));
-      }, 30000);
+      }, 60000); // Increase timeout to 60 seconds
 
       const messageHandler = event => {
         if (event.data.type === 'ready') {
@@ -120,7 +129,10 @@ async function initWorker() {
       state.worker.addEventListener('message', messageHandler);
     });
 
+    console.log('Worker initialization completed');
+
   } catch (error) {
+    console.error('Worker initialization error:', error);
     showError(`Worker initialization error: ${error.message}`);
     throw error;
   }
@@ -128,6 +140,7 @@ async function initWorker() {
 
 // Audio recording functions
 async function startRecording() {
+  console.log('Starting recording');
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     state.mediaRecorder = new MediaRecorder(stream);
@@ -149,24 +162,29 @@ async function startRecording() {
     state.mediaRecorder.start();
     state.isRecording = true;
     updateMicButton();
+    console.log('Recording started');
   } catch (error) {
     showError(`Microphone error: ${error.message}`);
   }
 }
 
 function stopRecording() {
+  console.log('Stopping recording');
   if (state.mediaRecorder && state.isRecording) {
     state.mediaRecorder.stop();
     state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
     state.isRecording = false;
     updateMicButton();
+    console.log('Recording stopped');
   }
 }
 
 async function decodeAudioData(arrayBuffer) {
+  console.log('Decoding audio data');
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
   const channelData = audioBuffer.getChannelData(0);
+  console.log('Audio data decoded');
   return channelData;
 }
 
@@ -198,6 +216,7 @@ function addMessage(content, role = 'assistant') {
 
 // Text generation
 async function generateResponse(text) {
+  console.log('Generating response for text:', text);
   try {
     updateStatus('Generating response...');
     const response = await sendMessageWithRetry({
@@ -210,6 +229,7 @@ async function generateResponse(text) {
     }
     
     addMessage(response.text);
+    console.log('Response generated:', response.text);
     updateStatus('Ready');
   } catch (error) {
     showError(`Generation error: ${error.message}`);
@@ -218,6 +238,7 @@ async function generateResponse(text) {
 
 // Event listeners
 function setupEventListeners() {
+  console.log('Setting up event listeners');
   state.elements.micButton?.addEventListener('click', () => {
     if (state.isRecording) {
       stopRecording();
@@ -241,10 +262,12 @@ function setupEventListeners() {
       state.elements.sendButton?.click();
     }
   });
+  console.log('Event listeners set up');
 }
 
 // Initialization
 window.addEventListener('DOMContentLoaded', async () => {
+  console.log('Initializing popup script');
   try {
     // Initialize elements
     state.elements = {
@@ -269,10 +292,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch (error) {
     showError(`Initialization error: ${error.message}`);
   }
+  console.log('Popup script initialized');
 });
 
 document.addEventListener('DOMContentLoaded', function() {
   // Ensure the document object is accessible
+  if (!document) {
+    throw new Error('Document object not found');
+  }
   const button = document.getElementById('myButton');
   if (button) {
     button.addEventListener('click', async () => {

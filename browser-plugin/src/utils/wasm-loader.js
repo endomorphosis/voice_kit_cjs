@@ -15,6 +15,8 @@ class WasmLoader {
   static async init() {
     if (this.isInitialized) return;
 
+    console.log('WASM initialization started');
+
     try {
       await Promise.all(WASM_FILES.map(async (file) => {
         const wasmUrl = chrome.runtime.getURL(`wasm/${file}`);
@@ -27,6 +29,8 @@ class WasmLoader {
         const wasmBuffer = await response.arrayBuffer();
         const wasmModule = await WebAssembly.compile(wasmBuffer);
         this.cache.set(file, wasmModule);
+
+        console.log('WASM module loaded:', file);
       }));
 
       // Configure environment with cached WASM modules
@@ -35,6 +39,8 @@ class WasmLoader {
       );
       
       this.isInitialized = true;
+
+      console.log('WASM initialization completed');
     } catch (error) {
       console.error('WASM initialization failed:', error);
       throw error;

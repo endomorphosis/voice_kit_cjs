@@ -151,6 +151,7 @@ async function initASR() {
   if (state.whisperPipeline) return state.whisperPipeline;
 
   try {
+    console.log('Initializing ASR pipeline');
     const pipelineConfig = {
       quantized: true,
       progress_callback: (progress) => {
@@ -169,10 +170,12 @@ async function initASR() {
       throw new Error('Failed to initialize ASR pipeline');
     }
 
+    console.log('ASR pipeline initialized');
     state.modelStatus = 'ready';
     await broadcastStatus('ready');
     return state.whisperPipeline;
   } catch (error) {
+    console.error('ASR pipeline initialization error:', error);
     state.modelStatus = 'error';
     await broadcastStatus('error', error.message);
     throw error;

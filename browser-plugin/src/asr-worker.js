@@ -1,6 +1,8 @@
 // ESM imports for worker
 import { pipeline, env } from '@xenova/transformers';
 
+// Ensure module scripts do not use importScripts().
+
 // Configure environment with proper paths
 env.useBrowserCache = false;
 env.useCustomCache = true;
@@ -29,14 +31,20 @@ async function initializeASR() {
   if (recognizer) return;
 
   try {
+    console.log('ASR worker initialization started');
+    console.log('Initializing ASR pipeline...');
     recognizer = await pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
       quantized: true,
       chunk_length_s: 30,
       stride_length_s: 5,
       revision: 'main'
     });
+    console.log('ASR pipeline initialized');
+    console.log('ASR worker initialization completed');
     sendMessage({ type: 'ready' });
   } catch (error) {
+    console.error('ASR worker initialization error:', error);
+    console.error('ASR pipeline initialization error:', error);
     sendMessage({ type: 'error', error: String(error) });
     throw error;
   }
@@ -103,5 +111,6 @@ async function handleMessage(data) {
 
 // Initialize immediately
 initializeASR().catch(error => {
+  console.error('Immediate ASR initialization error:', error);
   sendMessage({ type: 'error', error: String(error) });
 });
