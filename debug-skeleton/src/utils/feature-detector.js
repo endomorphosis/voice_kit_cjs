@@ -1,334 +1,272 @@
 /**
- * Utility for detecting browser capabilities relevant to the voice kit
+ * Feature Detector
+ * Tests browser capabilities required for transformers.js and voice kit
  */
 import { getLogger } from './logger.js';
 
 const logger = getLogger('FeatureDetector');
 
-export class FeatureDetector {
+class FeatureDetector {
   constructor() {
     this.features = {
       webGPU: null,
-      webGPUShaderFloat16: null,
       webAudio: null,
-      webWorker: null,
       sharedArrayBuffer: null,
       crossOriginIsolation: null,
-      storage: null,
-      speechRecognition: null,
-      speechSynthesis: null
+      webWorker: null,
+      webAssembly: null,
+      indexedDB: null,
+      webGL2: null,
+      webBluetooth: null,
+      mediaDevices: null
     };
-
-    this.detected = false;
+    
+    logger.info('FeatureDetector initialized');
   }
 
   /**
    * Detect all features
+   * @returns {Object} Object with feature support status
    */
   async detectAll() {
-    logger.info('Detecting browser features...');
-    const startTime = logger.time('feature-detection');
+    logger.info('Detecting all browser features');
+    
+    // Detect each feature
+    this.features.webGPU = this.detectWebGPU();
+    this.features.webAudio = this.detectWebAudio();
+    this.features.sharedArrayBuffer = this.detectSharedArrayBuffer();
+    this.features.crossOriginIsolation = this.detectCrossOriginIsolation();
+    this.features.webWorker = this.detectWebWorker();
+    this.features.webAssembly = this.detectWebAssembly();
+    this.features.indexedDB = this.detectIndexedDB();
+    this.features.webGL2 = this.detectWebGL2();
+    this.features.mediaDevices = this.detectMediaDevices();
+    
+    // Log detection results
+    logger.info('Feature detection complete', this.features);
+    
+    // Log critical feature warnings
+    const criticalFeatures = {
+      'WebGPU': this.features.webGPU,
+      'SharedArrayBuffer': this.features.sharedArrayBuffer,
+      'Cross-Origin Isolation': this.features.crossOriginIsolation,
+      'WebAssembly': this.features.webAssembly,
+      'Web Workers': this.features.webWorker
+    };
+    
+    Object.entries(criticalFeatures).forEach(([name, supported]) => {
+      if (!supported) {
+        logger.warn(`Critical feature ${name} is not supported. This may affect functionality.`);
+      }
+    });
 
-    try {
-      this.features.webGPU = await this.detectWebGPU();
-      this.features.webGPUShaderFloat16 = await this.detectWebGPUShaderFloat16();
-      this.features.webAudio = this.detectWebAudio();
-      this.features.webWorker = this.detectWebWorker();
-      this.features.sharedArrayBuffer = this.detectSharedArrayBuffer();
-      this.features.crossOriginIsolation = this.detectCrossOriginIsolation();
-      this.features.storage = this.detectStorage();
-      this.features.speechRecognition = this.detectSpeechRecognition();
-      this.features.speechSynthesis = this.detectSpeechSynthesis();
-      
-      this.detected = true;
-      logger.timeEnd('feature-detection', startTime);
-      
-      // Log a summary of detected features
-      logger.info('Feature detection summary:', JSON.stringify(this.features, null, 2));
-      
-      return this.features;
-    } catch (error) {
-      logger.error('Error during feature detection:', error);
-      throw error;
-    }
+    return this.features;
   }
 
   /**
    * Check if WebGPU is supported
+   * @returns {boolean} Whether WebGPU is supported
    */
-  async detectWebGPU() {
-    try {
-      logger.debug('Checking for WebGPU support...');
-      
-      // Check if navigator.gpu exists
-      if (!navigator.gpu) {
-        logger.warn('WebGPU is not supported (navigator.gpu is undefined)');
-        return false;
-      }
-      
-      // Try to request an adapter
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        logger.warn('WebGPU is not supported (no adapter found)');
-        return false;
-      }
-
-      // Get adapter info
-      const info = await adapter.requestAdapterInfo();
-      logger.info(`WebGPU is supported! Adapter: ${info.vendor} - ${info.architecture}`);
-      
-      return true;
-    } catch (error) {
-      logger.error('Error detecting WebGPU:', error);
-      return false;
+  detectWebGPU() {
+    const supported = typeof navigator.gpu !== 'undefined';
+    logger.info(`WebGPU support: ${supported}`);
+    
+    if (supported) {
+      logger.debug('WebGPU API is available, check if adapter can be obtained');
+    } else {
+      logger.info('WebGPU API not available in this browser');
     }
-  }
-
-  /**
-   * Check if WebGPU shader float16 extension is supported
-   */
-  async detectWebGPUShaderFloat16() {
-    try {
-      logger.debug('Checking for WebGPU shader float16 support...');
-      
-      if (!navigator.gpu) {
-        return false;
-      }
-      
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        return false;
-      }
-      
-      const hasFloat16 = adapter.features.has('shader-f16');
-      
-      if (hasFloat16) {
-        logger.info('WebGPU shader float16 is supported!');
-      } else {
-        logger.warn('WebGPU shader float16 is not supported');
-      }
-      
-      return hasFloat16;
-    } catch (error) {
-      logger.error('Error detecting WebGPU shader float16:', error);
-      return false;
-    }
+    
+    return supported;
   }
 
   /**
    * Check if Web Audio API is supported
+   * @returns {boolean} Whether Web Audio API is supported
    */
   detectWebAudio() {
-    try {
-      logger.debug('Checking for Web Audio API support...');
-      
-      const hasAudioContext = typeof AudioContext !== 'undefined' || 
-                            typeof webkitAudioContext !== 'undefined';
-      
-      if (hasAudioContext) {
-        logger.info('Web Audio API is supported!');
-      } else {
-        logger.warn('Web Audio API is not supported');
-      }
-      
-      return hasAudioContext;
-    } catch (error) {
-      logger.error('Error detecting Web Audio API:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Check if Web Workers are supported
-   */
-  detectWebWorker() {
-    try {
-      logger.debug('Checking for Web Worker support...');
-      
-      const hasWebWorker = typeof Worker !== 'undefined';
-      
-      if (hasWebWorker) {
-        logger.info('Web Workers are supported!');
-      } else {
-        logger.warn('Web Workers are not supported');
-      }
-      
-      return hasWebWorker;
-    } catch (error) {
-      logger.error('Error detecting Web Workers:', error);
-      return false;
-    }
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const supported = typeof AudioContext !== 'undefined';
+    logger.info(`Web Audio API support: ${supported}`);
+    return supported;
   }
 
   /**
    * Check if SharedArrayBuffer is supported
+   * @returns {boolean} Whether SharedArrayBuffer is supported
    */
   detectSharedArrayBuffer() {
-    try {
-      logger.debug('Checking for SharedArrayBuffer support...');
-      
-      const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
-      
-      if (hasSharedArrayBuffer) {
-        logger.info('SharedArrayBuffer is supported!');
-      } else {
-        logger.warn('SharedArrayBuffer is not supported');
+    const supported = typeof SharedArrayBuffer !== 'undefined';
+    logger.info(`SharedArrayBuffer support: ${supported}`);
+    
+    if (!supported) {
+      logger.warn('SharedArrayBuffer is required for WASM multithreading');
+      logger.info('To enable SharedArrayBuffer, the page must be cross-origin isolated');
+    } else {
+      try {
+        // Test if we can actually create a SharedArrayBuffer
+        // Some browsers expose the constructor but throw when instantiated
+        new SharedArrayBuffer(1);
+        logger.debug('SharedArrayBuffer creation successful');
+      } catch (e) {
+        logger.warn('SharedArrayBuffer constructor exists but cannot be instantiated:', e.message);
+        return false;
       }
-      
-      return hasSharedArrayBuffer;
-    } catch (error) {
-      logger.error('Error detecting SharedArrayBuffer:', error);
-      return false;
     }
+    
+    return supported;
   }
 
   /**
    * Check if the page is cross-origin isolated
+   * @returns {boolean} Whether the page is cross-origin isolated
    */
   detectCrossOriginIsolation() {
-    try {
-      logger.debug('Checking for cross-origin isolation...');
-      
-      const isIsolated = typeof crossOriginIsolated !== 'undefined' ? 
-                        crossOriginIsolated : 
-                        (self.crossOriginIsolated || false);
-      
-      if (isIsolated) {
-        logger.info('Page is cross-origin isolated!');
-      } else {
-        logger.warn('Page is not cross-origin isolated');
-        logger.info('To enable SharedArrayBuffer, you need these headers:');
-        logger.info('Cross-Origin-Embedder-Policy: require-corp');
-        logger.info('Cross-Origin-Opener-Policy: same-origin');
-      }
-      
-      return isIsolated;
-    } catch (error) {
-      logger.error('Error detecting cross-origin isolation:', error);
-      return false;
+    const supported = window.crossOriginIsolated === true;
+    logger.info(`Cross-Origin Isolation: ${supported}`);
+    
+    if (!supported) {
+      logger.warn('Cross-Origin Isolation is required for SharedArrayBuffer');
+      logger.info('To enable, the server must send headers: ' +
+                 'Cross-Origin-Embedder-Policy: require-corp and ' + 
+                 'Cross-Origin-Opener-Policy: same-origin');
     }
+    
+    return supported;
   }
 
   /**
-   * Check if storage (IndexedDB) is supported
+   * Check if Web Workers are supported
+   * @returns {boolean} Whether Web Workers are supported
    */
-  detectStorage() {
-    try {
-      logger.debug('Checking for IndexedDB support...');
-      
-      const hasIndexedDB = typeof indexedDB !== 'undefined';
-      
-      if (hasIndexedDB) {
-        logger.info('IndexedDB is supported!');
-      } else {
-        logger.warn('IndexedDB is not supported');
-      }
-      
-      return hasIndexedDB;
-    } catch (error) {
-      logger.error('Error detecting IndexedDB:', error);
-      return false;
-    }
+  detectWebWorker() {
+    const supported = typeof Worker !== 'undefined';
+    logger.info(`Web Worker support: ${supported}`);
+    return supported;
   }
 
   /**
-   * Check if Speech Recognition API is supported
+   * Check if WebAssembly is supported
+   * @returns {boolean} Whether WebAssembly is supported
    */
-  detectSpeechRecognition() {
-    try {
-      logger.debug('Checking for Speech Recognition API support...');
+  detectWebAssembly() {
+    const supported = typeof WebAssembly !== 'undefined';
+    logger.info(`WebAssembly support: ${supported}`);
+    
+    if (supported) {
+      // Check for SIMD support
+      const simdSupported = WebAssembly.validate(new Uint8Array([
+        0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 
+        2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11
+      ]));
       
-      const hasSpeechRecognition = typeof SpeechRecognition !== 'undefined' || 
-                                 typeof webkitSpeechRecognition !== 'undefined';
-      
-      if (hasSpeechRecognition) {
-        logger.info('Speech Recognition API is supported!');
-      } else {
-        logger.warn('Speech Recognition API is not supported');
-      }
-      
-      return hasSpeechRecognition;
-    } catch (error) {
-      logger.error('Error detecting Speech Recognition API:', error);
-      return false;
+      logger.info(`WebAssembly SIMD support: ${simdSupported}`);
     }
+    
+    return supported;
   }
 
   /**
-   * Check if Speech Synthesis API is supported
+   * Check if IndexedDB is supported
+   * @returns {boolean} Whether IndexedDB is supported
    */
-  detectSpeechSynthesis() {
+  detectIndexedDB() {
+    const supported = typeof window.indexedDB !== 'undefined';
+    logger.info(`IndexedDB support: ${supported}`);
+    return supported;
+  }
+
+  /**
+   * Check if WebGL2 is supported
+   * @returns {boolean} Whether WebGL2 is supported
+   */
+  detectWebGL2() {
     try {
-      logger.debug('Checking for Speech Synthesis API support...');
-      
-      const hasSpeechSynthesis = typeof SpeechSynthesisUtterance !== 'undefined' && 
-                                typeof speechSynthesis !== 'undefined';
-      
-      if (hasSpeechSynthesis) {
-        logger.info('Speech Synthesis API is supported!');
-      } else {
-        logger.warn('Speech Synthesis API is not supported');
-      }
-      
-      return hasSpeechSynthesis;
-    } catch (error) {
-      logger.error('Error detecting Speech Synthesis API:', error);
+      const canvas = document.createElement('canvas');
+      const supported = !!canvas.getContext('webgl2');
+      logger.info(`WebGL2 support: ${supported}`);
+      return supported;
+    } catch (e) {
+      logger.warn('Error detecting WebGL2:', e.message);
       return false;
     }
   }
 
   /**
-   * Check if all requirements for the voice kit are met
+   * Check if Media Devices API is supported
+   * @returns {boolean} Whether Media Devices API is supported
+   */
+  detectMediaDevices() {
+    const supported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    logger.info(`Media Devices API support: ${supported}`);
+    return supported;
+  }
+
+  /**
+   * Check if the system meets minimum requirements
+   * @returns {boolean} Whether minimum requirements are met
    */
   meetsMinimumRequirements() {
-    if (!this.detected) {
-      logger.warn('Cannot check requirements - features not yet detected');
-      return false;
-    }
+    const minimumRequirements = [
+      'webAudio',      // Required for audio input/output
+      'webWorker',     // Required for background processing
+      'webAssembly',   // Required for WASM fallback
+      'mediaDevices'   // Required for microphone access
+    ];
     
-    // Check critical requirements
-    const hasWebGPU = this.features.webGPU;
-    const hasWebAudio = this.features.webAudio;
-    const hasWebWorker = this.features.webWorker;
+    const allMet = minimumRequirements.every(req => this.features[req]);
     
-    const meetsRequirements = hasWebGPU && hasWebAudio && hasWebWorker;
-    
-    if (meetsRequirements) {
-      logger.info('Browser meets minimum requirements for voice kit');
+    if (allMet) {
+      logger.info('System meets minimum requirements');
     } else {
-      logger.error('Browser does not meet minimum requirements for voice kit');
-      logger.error('Required: WebGPU, Web Audio API, Web Workers');
-      logger.error(`Current status: WebGPU: ${hasWebGPU}, Web Audio: ${hasWebAudio}, Web Workers: ${hasWebWorker}`);
+      const missing = minimumRequirements.filter(req => !this.features[req]);
+      logger.warn(`System does not meet minimum requirements. Missing: ${missing.join(', ')}`);
     }
     
-    return meetsRequirements;
+    return allMet;
   }
 
   /**
-   * Check if optimal requirements for the voice kit are met
+   * Check if the system meets optimal requirements
+   * @returns {boolean} Whether optimal requirements are met
    */
   meetsOptimalRequirements() {
-    if (!this.detected) {
-      logger.warn('Cannot check requirements - features not yet detected');
-      return false;
+    const optimalRequirements = [
+      'webGPU',               // For GPU acceleration
+      'sharedArrayBuffer',    // For multithreaded processing
+      'crossOriginIsolation', // For SAB support
+      'webAudio',             // For audio processing
+      'webWorker',            // For background processing
+      'webAssembly',          // For WASM fallback
+      'mediaDevices'          // For microphone access
+    ];
+    
+    const allMet = optimalRequirements.every(req => this.features[req]);
+    
+    if (allMet) {
+      logger.info('System meets optimal requirements');
+    } else {
+      const missing = optimalRequirements.filter(req => !this.features[req]);
+      logger.warn(`System does not meet optimal requirements. Missing: ${missing.join(', ')}`);
     }
     
-    const meetsMinimum = this.meetsMinimumRequirements();
-    const hasSharedArrayBuffer = this.features.sharedArrayBuffer;
-    const isCrossOriginIsolated = this.features.crossOriginIsolation;
-    const hasStorage = this.features.storage;
-    
-    const meetsOptimal = meetsMinimum && hasSharedArrayBuffer && 
-                       isCrossOriginIsolated && hasStorage;
-    
-    if (meetsOptimal) {
-      logger.info('Browser meets optimal requirements for voice kit');
-    } else if (meetsMinimum) {
-      logger.warn('Browser meets minimum but not optimal requirements');
-      logger.warn('For best performance, enable cross-origin isolation and SharedArrayBuffer');
-    }
-    
-    return meetsOptimal;
+    return allMet;
+  }
+  
+  /**
+   * Get diagnostic information about the browser
+   * @returns {Object} Browser information
+   */
+  getBrowserInfo() {
+    return {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      vendor: navigator.vendor,
+      language: navigator.language,
+      hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
+      deviceMemory: navigator.deviceMemory || 'unknown',
+      cookieEnabled: navigator.cookieEnabled
+    };
   }
 }
 
